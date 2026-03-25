@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Module Update Checker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #1a1a2e; color: #e0e0e0;
+    padding: 16px; min-height: 100vh;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #fff; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+  .module-card {
+    background: #16213e; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .module-card.tracked { background: #1a2a4a; border: 1px solid #334477; }
+  .module-info { flex: 1; min-width: 0; }
+  .module-name {
+    font-size: 15px; font-weight: 500; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .module-version { font-size: 12px; color: #888; margin-top: 2px; }
+  .module-repo { margin-top: 6px; }
+  .module-repo input {
+    width: 100%; background: #0f1a30; border: 1px solid #334;
+    border-radius: 8px; padding: 8px 10px; color: #ccc;
+    font-size: 13px; outline: none;
+  }
+  .module-repo input:focus { border-color: #5577bb; }
+  .module-repo input::placeholder { color: #555; }
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle .slider {
+    position: absolute; inset: 0; background: #333;
+    border-radius: 24px; cursor: pointer; transition: 0.3s;
+  }
+  .toggle .slider:before {
+    content: ""; position: absolute;
+    height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background: #888; border-radius: 50%; transition: 0.3s;
+  }
+  .toggle input:checked + .slider { background: #4466aa; }
+  .toggle input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+  .btn {
+    width: 100%; padding: 14px; background: #4466aa; color: #fff;
+    border: none; border-radius: 12px; font-size: 15px;
+    font-weight: 500; cursor: pointer; margin-top: 16px;
+  }
+  .btn:active { background: #335588; }
+  .btn-check { background: #2a4a2a; margin-top: 8px; }
+  .btn-check:active { background: #1a3a1a; }
+  .status {
+    text-align: center; font-size: 13px;
+    color: #888; margin-top: 12px; min-height: 20px;
+  }
+  .update-available {
+    display: inline-block; background: #4a3a1a; color: #ffaa33;
+    font-size: 11px; padding: 2px 8px; border-radius: 6px; margin-left: 6px;
+  }
+  .up-to-date {
+    display: inline-block; color: #4a4; font-size: 11px; margin-left: 6px;
+  }
+  .section-label {
+    font-size: 12px; color: #666; text-transform: uppercase;
+    letter-spacing: 1px; margin: 20px 0 8px;
+  }
+  .loading { text-align: center; padding: 40px; color: #666; }
+  .dbg-section {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    margin: 10px 0; padding: 12px; font-family: monospace;
+    font-size: 13px; line-height: 1.6; color: #c9d1d9;
+    word-break: break-all; white-space: pre-wrap;
+  }
+  .dbg-section h3 {
+    font-size: 13px; color: #58a6ff; margin: 0 0 8px 0;
+    padding-bottom: 6px; border-bottom: 1px solid #21262d;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  .dbg-ok { color: #3fb950; }
+  .dbg-warn { color: #d29922; }
+  .dbg-err { color: #f85149; }
+  .dbg-dim { color: #6e7681; }
+  .dbg-key { color: #79c0ff; }
+</style>
+</head>
+<body>
+
+<h1>Module Update Checker</h1>
+<p class="subtitle">Track your KSU modules for GitHub updates</p>
+
+<div class="section-label">Installed Modules</div>
+<div id="modules-list"><div class="loading">Loading modules...</div></div>
+
+<button class="btn" onclick="saveConfig()">Save Configuration</button>
+<button class="btn btn-check" onclick="checkNow()">Check for Updates Now</button>
+<button class="btn" style="background:#333;margin-top:8px;font-size:13px" onclick="showDebug()">Show Debug Info</button>
+<p class="status" id="status"></p>
+<div id="debug-out" style="display:none"></div>
+
+<script>
+var MODDIR = '/data/adb/modules';
+var CONFIG_PATH = '/data/adb/modules/module-update-checker/config.json';
+
+var KNOWN_REPOS = {
+  'Yurikey': 'Yurii0307/yurikey',
+  'rezygisk': 'PerformanC/ReZygisk',
+  'susfs4ksu': 'sidex15/susfs4ksu-module',
+  'tricky_store': '5ec1cff/TrickyStore',
+  'playintegrityfix': 'KOWX712/PlayIntegrityFix',
+  'TA_utl': 'KOWX712/Tricky-Addon-Update-Target-List',
+  'dmverity-props-spoof': 'dracediax/dmverity-props-spoof',
+  'module-update-checker': 'dracediax/module-update-checker',
+  'zygisk_lsposed': 'JingMatrix/LSPosed'
+};
+
+var modules = [];
+var config = [];
+var debugLog = [];
+
+function exec(cmd) {
+  var apis = [
+    { name: 'ksu', obj: typeof ksu !== 'undefined' ? ksu : null },
+    { name: 'ksuwebui', obj: typeof ksuwebui !== 'undefined' ? ksuwebui : null }
+  ];
+
+  for (var a = 0; a < apis.length; a++) {
+    if (!apis[a].obj) continue;
+    try {
+      var r = apis[a].obj.exec(cmd);
+      var info = { api: apis[a].name, cmd: cmd.substring(0, 80), type: typeof r };
+
+      if (typeof r === 'string') {
+        info.len = r.length;
+        debugLog.push(info);
+        return r;
+      }
+      if (typeof r === 'object' && r !== null) {
+        info.keys = Object.keys(r).join(',');
+        info.hasStdout = ('stdout' in r);
+        info.errno = r.errno;
+        debugLog.push(info);
+        return r.stdout || r.out || '';
+      }
+      if (typeof r === 'number') {
+        info.value = r;
+        debugLog.push(info);
+        return '';
+      }
+      info.raw = String(r).substring(0, 100);
+      debugLog.push(info);
+      return String(r);
+    } catch(e) {
+      debugLog.push({ api: apis[a].name, cmd: cmd.substring(0, 80), error: e.message });
+    }
+  }
+  debugLog.push({ cmd: cmd.substring(0, 80), error: 'no api available' });
+  return '';
+}
+
+function grepProp(filePath, key) {
+  var val = exec("grep '^" + key + "=' " + filePath + " 2>/dev/null");
+  if (val && val.indexOf('=') !== -1) {
+    return val.substring(val.indexOf('=') + 1).trim();
+  }
+  return '';
+}
+
+function discoverModules() {
+  var found = {};
+
+  // Primary discovery: find all module.prop files, collapse to one line
+  var findResult = exec("find /data/adb -name module.prop -maxdepth 4 2>/dev/null | tr '\\n' '|'");
+  if (findResult && findResult.trim()) {
+    var propFiles = findResult.trim().split('|');
+    for (var f = 0; f < propFiles.length; f++) {
+      var propPath = propFiles[f].trim();
+      if (!propPath) continue;
+      var parentDir = propPath.replace(/\/module\.prop$/, '');
+      if (parentDir.indexOf('module-update-checker') !== -1) continue;
+      found[parentDir] = true;
+    }
+  }
+
+  return Object.keys(found);
+}
+
+function loadModules() {
+  var moduleDirs = discoverModules();
+  var seen = {}; // deduplicate by module id
+
+  modules = [];
+  for (var i = 0; i < moduleDirs.length; i++) {
+    var fullPath = moduleDirs[i];
+    var dir = fullPath.split('/').pop();
+    var propFile = fullPath + '/module.prop';
+
+    var id = grepProp(propFile, 'id') || dir;
+
+    // Deduplicate: keep the one under /data/adb/modules/ if both exist
+    if (seen[id]) {
+      // Prefer the /data/adb/modules/ path
+      if (fullPath.indexOf('/data/adb/modules/') === 0) {
+        // Replace the previous entry
+        for (var r = 0; r < modules.length; r++) {
+          if (modules[r].id === id) { modules.splice(r, 1); break; }
+        }
+      } else {
+        continue; // skip this duplicate
+      }
+    }
+    seen[id] = true;
+
+    var name = grepProp(propFile, 'name') || dir;
+    var version = grepProp(propFile, 'version') || '?';
+    var versionCode = grepProp(propFile, 'versionCode') || '0';
+
+    modules.push({
+      id: id, name: name, version: version,
+      versionCode: parseInt(versionCode) || 0, dir: dir,
+      fullPath: fullPath
+    });
+  }
+
+  var configRaw = exec('cat ' + CONFIG_PATH);
+  try { config = JSON.parse(configRaw); } catch(e) { config = []; }
+  if (!Array.isArray(config)) config = [];
+
+  renderModules();
+}
+
+function renderModules() {
+  var list = document.getElementById('modules-list');
+  list.innerHTML = '';
+
+  if (modules.length === 0) {
+    list.innerHTML = '<div class="loading">No modules found</div>';
+    return;
+  }
+
+  for (var i = 0; i < modules.length; i++) {
+    var mod = modules[i];
+    var saved = null;
+    for (var j = 0; j < config.length; j++) {
+      if (config[j].id === mod.id) { saved = config[j]; break; }
+    }
+    var tracked = !!saved;
+    var repo = saved ? saved.repo : (KNOWN_REPOS[mod.id] || KNOWN_REPOS[mod.dir] || '');
+
+    var card = document.createElement('div');
+    card.className = 'module-card' + (tracked ? ' tracked' : '');
+    card.innerHTML =
+      '<div class="module-info">' +
+        '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
+        '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
+          ' <span id="upd-' + escapeAttr(mod.id) + '"></span></div>' +
+        '<div class="module-repo">' +
+          '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
+                 'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input">' +
+        '</div>' +
+      '</div>' +
+      '<label class="toggle">' +
+        '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
+               'onchange="this.closest(\'.module-card\').classList.toggle(\'tracked\', this.checked)">' +
+        '<span class="slider"></span>' +
+      '</label>';
+    list.appendChild(card);
+  }
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
+
+function escapeAttr(s) {
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function saveConfig() {
+  var newConfig = [];
+  var toggles = document.querySelectorAll('.toggle input:checked');
+  for (var i = 0; i < toggles.length; i++) {
+    var id = toggles[i].getAttribute('data-id');
+    var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
+    var repo = inp ? inp.value.trim() : '';
+    if (repo) newConfig.push({ id: id, repo: repo });
+  }
+  var json = JSON.stringify(newConfig);
+  exec("echo '" + json.replace(/'/g, "'\\''") + "' > " + CONFIG_PATH);
+  config = newConfig;
+  document.getElementById('status').textContent = 'Configuration saved \u2713';
+}
+
+function checkNow() {
+  var statusEl = document.getElementById('status');
+  statusEl.textContent = 'Checking for updates...';
+
+  var tracked = [];
+  var toggles = document.querySelectorAll('.toggle input:checked');
+  for (var i = 0; i < toggles.length; i++) {
+    var id = toggles[i].getAttribute('data-id');
+    var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
+    var repo = inp ? inp.value.trim() : '';
+    if (repo) tracked.push({ id: id, repo: repo });
+  }
+
+  if (tracked.length === 0) {
+    statusEl.textContent = 'No modules tracked. Toggle some on and save first.';
+    return;
+  }
+
+  var updates = 0;
+  var checked = 0;
+  var errors = 0;
+
+  for (var i = 0; i < tracked.length; i++) {
+    var t = tracked[i];
+    // Collapse JSON to one line with tr to bypass first-line-only exec()
+    var result = exec("curl -sf --connect-timeout 15 https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
+    var badge = document.getElementById('upd-' + t.id);
+
+    if (!result || result.length < 5) {
+      errors++;
+      if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">fetch failed</span>';
+      continue;
+    }
+
+    var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
+    var latest = tagMatch ? tagMatch[1] : '';
+    if (!latest) {
+      errors++;
+      if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no tag</span>';
+      continue;
+    }
+
+    checked++;
+
+    var mod = null;
+    for (var j = 0; j < modules.length; j++) {
+      if (modules[j].id === t.id) { mod = modules[j]; break; }
+    }
+    if (!mod) continue;
+
+    // Normalize versions for comparison
+    var installedClean = normalizeVersion(mod.version);
+    var latestClean = normalizeVersion(latest);
+
+    if (latestClean !== installedClean) {
+      updates++;
+      if (badge) badge.innerHTML = '<span class="update-available">\u2191 ' + escapeHtml(latest) + '</span>';
+    } else {
+      if (badge) badge.innerHTML = '<span class="up-to-date">\u2713</span>';
+    }
+  }
+
+  var msg = '';
+  if (updates > 0) msg = updates + ' update(s) available!';
+  else msg = 'All modules up to date \u2713';
+  if (errors > 0) msg += ' (' + errors + ' failed to check)';
+  statusEl.textContent = msg;
+}
+
+// Normalize version strings for comparison
+// Strips: leading v, parenthetical metadata, trailing -release, build hashes
+function normalizeVersion(v) {
+  if (!v) return '';
+  v = v.trim().toLowerCase();
+  v = v.replace(/^v/i, '');           // strip leading v
+  v = v.replace(/\s*\(.*?\)\s*/g, ''); // strip (build-info) / (7455) etc
+  v = v.replace(/-release$/i, '');     // strip trailing -release
+  v = v.replace(/[-+][0-9a-f]{6,}$/i, ''); // strip commit hashes like -0419e67
+  v = v.trim();
+  return v;
+}
+
+function dbgSection(title, content) {
+  return '<div class="dbg-section"><h3>' + escapeHtml(title) + '</h3>' + content + '</div>';
+}
+
+function dbgLine(key, val, cls) {
+  cls = cls || '';
+  return '<span class="dbg-key">' + escapeHtml(key) + '</span>  ' +
+         '<span class="' + cls + '">' + escapeHtml(val) + '</span>\n';
+}
+
+function showDebug() {
+  var el = document.getElementById('debug-out');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'none') return;
+
+  var html = '';
+
+  // Section 1: Modules loaded
+  var s1 = '';
+  for (var m = 0; m < modules.length; m++) {
+    var mod = modules[m];
+    s1 += dbgLine('id', mod.id);
+    s1 += dbgLine('name', mod.name);
+    s1 += dbgLine('version', mod.version, mod.version === '?' ? 'dbg-err' : 'dbg-ok');
+    s1 += dbgLine('path', mod.fullPath);
+    if (m < modules.length - 1) s1 += '<span class="dbg-dim">---</span>\n';
+  }
+  if (modules.length === 0) s1 = '<span class="dbg-warn">No modules discovered</span>\n';
+  html += dbgSection('MODULES (' + modules.length + ')', s1);
+
+  // Section 2: version normalization check
+  var s2 = '';
+  var testCases = [
+    ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
+    ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
+    ['v1.9.2-it (7455)', 'v2.0'],
+    ['v2.0.0-0419e67', 'v1.5.2+_R26']
+  ];
+  for (var tc = 0; tc < testCases.length; tc++) {
+    var a = testCases[tc][0], b = testCases[tc][1];
+    var na = normalizeVersion(a), nb = normalizeVersion(b);
+    var match = na === nb;
+    s2 += dbgLine(a + '  vs  ' + b, (match ? 'MATCH' : 'DIFF') + '  [' + na + '] vs [' + nb + ']', match ? 'dbg-ok' : 'dbg-warn');
+  }
+  html += dbgSection('VERSION NORMALIZE TEST', s2);
+
+  // Section 3: API stats
+  var s3 = '';
+  s3 += dbgLine('total calls', debugLog.length + '');
+  var errCount = 0;
+  for (var l = 0; l < debugLog.length; l++) {
+    if (debugLog[l].error) errCount++;
+  }
+  s3 += dbgLine('errors', errCount + '', errCount > 0 ? 'dbg-warn' : 'dbg-ok');
+  html += dbgSection('API STATS', s3);
+
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v1.7</div>' + html + '</div>';
+}
+
+loadModules();
+</script>
+</body>
+</html>
