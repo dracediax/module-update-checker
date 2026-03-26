@@ -706,7 +706,7 @@ function checkNow() {
     if (!releaseLatest && !ciLatest) {
       errors++;
       if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no releases or CI builds</span>';
-      continue;
+      idx++; setTimeout(checkNext, 10); return;
     }
 
     checked++;
@@ -715,7 +715,7 @@ function checkNow() {
     for (var j = 0; j < modules.length; j++) {
       if (modules[j].id === t.id) { mod = modules[j]; break; }
     }
-    if (!mod) continue;
+    if (!mod) { idx++; setTimeout(checkNext, 10); return; }
 
     var installedClean = normalizeVersion(mod.version);
     var badgeHtml = '';
@@ -912,8 +912,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.7.2-it (7455)', 'v3.7'],
-    ['v3.7.0-0419e67', 'v1.5.2+_R26']
+    ['v3.7.1.2-it (7455)', 'v3.7.1'],
+    ['v3.7.1.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -952,7 +952,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.7</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.7.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
