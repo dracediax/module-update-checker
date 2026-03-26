@@ -1,131 +1,145 @@
 # Module Update Checker
 
-> KernelSU module with a WebUI that tracks your installed modules, checks GitHub for updates, and can update them directly.
+> Track, check, and update your KernelSU / Magisk / APatch modules — all from one WebUI.
 
 ![KernelSU](https://img.shields.io/badge/KernelSU-Module-green?style=flat-square)
-![Android](https://img.shields.io/badge/Android-12%2B-blue?style=flat-square)
+![Magisk](https://img.shields.io/badge/Magisk-Compatible-blue?style=flat-square)
+![APatch](https://img.shields.io/badge/APatch-Compatible-purple?style=flat-square)
+![Android](https://img.shields.io/badge/Android-12%2B-orange?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
 ---
 
-## Features
+## What It Does
 
-- **Auto-discovery** — finds all installed modules, including those at non-standard paths (e.g. `/data/adb/rezygisk/`)
-- **GitHub release tracking** — checks the GitHub Releases API for each tracked module
-- **Smart version matching** — normalizes version strings by stripping build metadata, `-release` suffixes, commit hashes, and parenthetical info
-- **One-tap updates** — download and install module updates directly from the WebUI
-- **Self-updating** — can detect and update itself
-- **Push notifications** — Android notification on boot when updates are found, and on manual check
-- **Background checks** — `service.sh` runs a 24-hour auto-check cycle after boot with network-aware startup
-- **Cached results** — background check results are saved so the WebUI shows updates immediately on open
-- **Notification dedup** — won't re-fire the same notification if the same updates are still pending
-- **Persistent config** — configuration survives module updates (stored at `/data/adb/muc_config.json`)
-- **Dynamic KSU manager detection** — auto-detects the KSU manager package name (supports randomized package names)
-- **Per-module toggles** — choose which modules to track, with pre-filled repo mappings for common modules
-- **Reboot prompt** — banner and reboot button appear after installing updates
-- **Debug panel** — built-in diagnostics for module discovery, version normalization, API calls, and notification attempts
+- Discovers all installed modules automatically
+- Checks GitHub for newer versions
+- **One-tap update** — download and install directly from the WebUI
+- **Boot notifications** — get notified after every reboot if updates are available
+- **Instant results** — background checks are cached, so the WebUI shows updates immediately
+
+---
+
+## Quick Start
+
+1. Download the latest `.zip` from [Releases](https://github.com/dracediax/module-update-checker/releases)
+2. Flash via your module manager
+3. Open the module's **WebUI**
+4. Toggle on modules to track, fill in any missing repos
+5. **Save Configuration** → **Check for Updates Now**
+
+That's it. After reboot, you'll get a notification if updates are available.
+
+---
 
 ## Compatibility
 
-| Manager | WebUI | Background Checks | Notifications | Full Support |
-|---------|-------|-------------------|---------------|-------------|
-| [KernelSU Next](https://github.com/rifsxd/KernelSU-Next) | Yes | Yes | Yes | Yes |
-| [KernelSU](https://github.com/tiann/KernelSU) (original) | Yes | Yes | Yes | Yes |
-| [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) (standalone) | Yes | Yes | Yes | Yes |
-| Magisk (with [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI)) | Yes | Yes | Yes | Yes |
-| APatch (with [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI)) | Yes | Yes | Yes | Yes |
-| Magisk (without KsuWebUI) | No | Yes | Yes | Partial |
+| Manager | Full Support | Notes |
+|---------|-------------|-------|
+| [KernelSU Next](https://github.com/rifsxd/KernelSU-Next) | Yes | |
+| [KernelSU](https://github.com/tiann/KernelSU) | Yes | |
+| [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) | Yes | Standalone WebUI — works with any manager |
+| Magisk + [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) | Yes | Install KsuWebUI for the full experience |
+| APatch + [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) | Yes | Install KsuWebUI for the full experience |
+| Magisk (without KsuWebUI) | Partial | Background checks + notifications work, no WebUI |
 
-All managers that support the `ksu.exec()` WebUI API are fully compatible. The module's exec wrapper handles both `ksu` and `ksuwebui` JavaScript interfaces automatically.
+---
 
-**Magisk/APatch users without a WebUI app:** `service.sh` still runs background checks and sends notifications on boot, but you won't have access to the configuration UI or update buttons. Install [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) for full functionality.
+## Pre-filled Repos
 
-## Install
+These modules are auto-detected — just toggle them on:
 
-1. Download the latest zip from [Releases](https://github.com/dracediax/module-update-checker/releases)
-2. Flash via your module manager
-3. Open the module's **WebUI** from your manager
-4. Toggle on the modules you want to track, fill in any missing `owner/repo` fields
-5. Tap **Save Configuration**, then **Check for Updates Now**
+| Module | Repository |
+|--------|-----------|
+| LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
+| ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) |
+| ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) |
+| Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) |
+| Tricky Store | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) |
+| Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) |
+| Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) |
+| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) |
+| Yurikey | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) |
+| NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) |
+| Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) |
+| DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
+| Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
 
-## How It Works
+You can manually enter any `owner/repo` for modules not in this list.
+
+---
+
+<details>
+<summary><b>How It Works</b></summary>
 
 ### WebUI (Manual Check)
 
-The WebUI runs inside the manager's WebUI environment and uses `ksu.exec()` to run shell commands on device.
+The WebUI runs inside the manager's WebUI environment and uses `ksu.exec()` to run shell commands.
 
 | Step | What happens |
 |------|-------------|
 | **Discovery** | `find /data/adb -name module.prop` locates all installed modules |
 | **Prop reading** | `grep '^field=' module.prop` extracts each field individually |
-| **Update check** | `curl` fetches the latest GitHub release, `tag_name` is compared against the installed version |
-| **Update install** | Downloads the release `.zip` asset, installs via `ksud module install` (fallback: manual unzip) |
+| **Update check** | `curl` fetches the latest GitHub release, `tag_name` is compared against installed version |
+| **Update install** | Downloads the `.zip` asset, installs via `ksud module install` (fallback: manual unzip) |
 | **Notification** | `su 2000 -c 'cmd notification post'` sends an Android notification |
 
-All commands pipe through `tr` to collapse multi-line output onto a single line — a workaround for the `ksu.exec()` first-line-only limitation.
+All commands pipe through `tr` to collapse multi-line output — a workaround for the `ksu.exec()` first-line-only limitation.
 
 ### Background Check (service.sh)
 
-After boot, `service.sh` waits for network connectivity (pings `github.com`), then checks all tracked modules against GitHub. If updates are found, it posts a single consolidated notification and caches the results.
+After boot, `service.sh` waits for network connectivity, then checks all tracked modules:
 
-- Runs an initial check after boot + network ready
-- Polls every 60s for WebUI trigger files (immediate notification relay)
+- Runs initial check after boot + network ready (~30-60s)
+- Caches results to `/data/adb/muc_update_cache` — WebUI loads these instantly
 - Re-checks every 24 hours
-- Caches results to `/data/adb/muc_update_cache` — WebUI loads these instantly on open
-- Deduplicates notifications — won't re-fire if the same updates are pending
+- Polls every 60s for WebUI trigger files
+- Deduplicates notifications within the same boot cycle
 
-## Known Limitations
+### Data Files
 
-### `ksu.exec()` returns only the first line
+| File | Purpose |
+|------|---------|
+| `/data/adb/muc_config.json` | Tracked modules config (persists across updates) |
+| `/data/adb/muc_update_cache` | Cached check results for instant WebUI display |
+| `/data/adb/muc_ksu_package` | Detected KSU manager package name |
 
-The KSU WebUI `exec()` API truncates output at the first newline. All commands are designed around this:
-- Module props: `grep '^key='` returns one matching line
-- Directory listings: `find ... | tr '\n' '|'` collapses paths onto one line
-- GitHub API: `curl ... | tr -d '\n'` flattens JSON to a single line
+</details>
+
+<details>
+<summary><b>Known Limitations</b></summary>
+
+### exec() returns only the first line
+
+The KSU WebUI `exec()` API truncates at the first newline. All commands are designed around this using `grep` (single-line match) and `tr` (collapse newlines).
 
 ### Notifications show as "Shell"
 
-Android notifications are posted via `cmd notification post` as the shell user (UID 2000). This means they appear under the "Shell" app name. The notification title includes "Module Update Checker:" to identify the source. Changing the sender name would require a companion APK.
+Notifications are posted as shell user (UID 2000) — they appear under "Shell". The title includes "Module Update Checker:" to identify the source.
 
-### Notifications are not interactive
+### Notifications are not tappable
 
-Tapping the notification does not open the manager's WebUI. Android's `cmd notification post` does not support content intents from the shell user context. A companion APK would be needed for tap-to-open functionality.
+`cmd notification post` doesn't support click intents from the shell context. A companion APK would be needed.
 
-### SUSFS (`susfs4ksu`) version mismatch
+### SUSFS version mismatch
 
-The SUSFS module's `module.prop` reports the **kernel component version**, not the **module wrapper version**. These are independently maintained version schemes.
+SUSFS reports the kernel component version, not the module version. These are independent version schemes. **Recommendation:** Leave SUSFS un-tracked — it has its own update mechanism.
 
-**Recommendation:** Leave SUSFS un-tracked. It has its own built-in update mechanism within KernelSU Manager.
+### String-based version comparison
 
-### Version comparison is string-based
+Versions are normalized and compared as strings, not semantically. `v2.0` vs `v1.9` shows as "different" but doesn't indicate which is newer.
 
-The checker normalizes and compares version strings — it does not do semantic version ordering. Modules at `v2.0` compared to a release tagged `v1.9` will show as "different" but won't indicate which is newer.
+### GitHub rate limits
 
-### GitHub API rate limits
+Unauthenticated requests: **60/hour**. Heavy use may hit this.
 
-Unauthenticated GitHub API requests are limited to **60/hour**. If you track many modules and check frequently, you may hit this limit.
+### Update button needs `.zip` asset
 
-### Update button requires `.zip` release asset
+The update button only appears if the GitHub release contains a `.zip` file.
 
-The one-tap update button only appears if the GitHub release contains a `.zip` file in its assets. Releases with only source archives won't show the button.
+</details>
 
-## Pre-filled Repos
-
-These modules have their GitHub repos pre-filled:
-
-| Module ID | Repository |
-|-----------|-----------|
-| `zygisk_lsposed` | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
-| `rezygisk` | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) |
-| `tricky_store` | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) |
-| `playintegrityfix` | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) |
-| `TA_utl` | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) |
-| `susfs4ksu` | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) |
-| `Yurikey` | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) |
-| `dmverity-props-spoof` | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
-| `module-update-checker` | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
-
-You can manually enter any `owner/repo` for modules not in this list.
+---
 
 ## License
 
