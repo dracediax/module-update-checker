@@ -131,13 +131,16 @@ send_notification() {
     fi
 
     log "sending notification: $title | $text"
-    local result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$text'" 2>&1)
-    log "notification result: $result"
 
-    if [ -z "$result" ] || echo "$result" | grep -qi "error\|denied\|not found"; then
-        log "su 2000 failed, trying direct"
-        result=$(cmd notification post -S bigtext -t "Module Update Checker: $title" muc_updates "$text" 2>&1)
-        log "direct result: $result"
+    # Try companion APK first (shows as "Module Update Checker" with tap-to-open)
+    local result=$(am broadcast -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
+    log "companion app: $result"
+
+    # Fallback to shell notification if companion not installed
+    if echo "$result" | grep -qi "not found\|no receivers\|error"; then
+        log "companion not available, falling back to shell"
+        result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$text'" 2>&1)
+        log "shell notification: $result"
     fi
 
     # Save for dedup
