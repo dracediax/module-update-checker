@@ -112,6 +112,34 @@
     background: none; border: none; color: #aac; font-size: 18px; cursor: pointer;
   }
   @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+  .token-section {
+    background: #16213e; border-radius: 12px; padding: 14px 16px;
+    margin-top: 16px;
+  }
+  .token-section.open { border: 1px solid #334477; }
+  .token-header {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .token-header input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: #4466aa;
+  }
+  .token-header label { font-size: 14px; color: #ccc; cursor: pointer; }
+  .token-body { display: none; margin-top: 12px; }
+  .token-body.visible { display: block; }
+  .token-body input[type="text"] {
+    width: 100%; background: #0f1a30; border: 1px solid #334;
+    border-radius: 8px; padding: 8px 10px; color: #ccc;
+    font-size: 13px; outline: none; font-family: monospace;
+  }
+  .token-body input[type="text"]:focus { border-color: #5577bb; }
+  .token-info {
+    font-size: 12px; color: #888; line-height: 1.6; margin-top: 10px;
+  }
+  .token-info a { color: #5588cc; text-decoration: none; }
+  .token-warn {
+    font-size: 11px; color: #d29922; background: #2a2a1a;
+    border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -126,6 +154,29 @@
 
 <div class="section-label">Installed Modules</div>
 <div id="modules-list"><div class="loading">Loading modules...</div></div>
+
+<div class="token-section" id="token-section">
+  <div class="token-header" onclick="toggleToken()">
+    <input type="checkbox" id="token-toggle" onclick="event.stopPropagation(); toggleToken()">
+    <label for="token-toggle">Use GitHub Token (optional)</label>
+  </div>
+  <div class="token-body" id="token-body">
+    <input type="text" id="token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+    <div class="token-info">
+      <b>What is this?</b> A GitHub Personal Access Token increases your API rate limit from <b>60 to 5,000 requests/hour</b>. Without a token, the module works fine — you only need this if you track many modules or check very frequently.
+      <br><br>
+      <b>How to get one:</b><br>
+      1. Go to <a href="https://github.com/settings/tokens">github.com/settings/tokens</a><br>
+      2. Click "Generate new token (classic)"<br>
+      3. Name it (e.g. "module-update-checker")<br>
+      4. Leave all scope checkboxes <b>unchecked</b> — no permissions needed<br>
+      5. Generate and paste it here
+    </div>
+    <div class="token-warn">
+      Warning: The token is stored in plaintext at /data/adb/muc_token. Any app with root access can read it. Since no scopes are granted, the token can only read public repos — but it is tied to your GitHub account.
+    </div>
+  </div>
+</div>
 
 <button class="btn" id="reboot-btn" style="display:none;background:#aa3333;margin-bottom:8px;font-weight:600" onclick="rebootNow()">Reboot Now</button>
 <button class="btn" onclick="saveConfig()">Save Configuration</button>
@@ -158,7 +209,9 @@ var modules = [];
 var config = [];
 var debugLog = [];
 var ksuPackage = '';
+var ghToken = '';
 var KSU_PKG_PATH = '/data/adb/muc_ksu_package';
+var TOKEN_PATH = '/data/adb/muc_token';
 
 function exec(cmd) {
   var apis = [
@@ -363,6 +416,25 @@ function saveConfig() {
   var json = JSON.stringify(newConfig);
   exec("echo '" + json.replace(/'/g, "'\\''") + "' > " + CONFIG_PATH);
   config = newConfig;
+
+  // Save or clear token
+  var tokenCb = document.getElementById('token-toggle');
+  if (tokenCb.checked) {
+    var tokenInput = document.getElementById('token-input');
+    var tokenVal = tokenInput.getAttribute('data-full') || tokenInput.value.trim();
+    if (tokenVal && tokenVal.indexOf('...') === -1) {
+      ghToken = tokenVal;
+      exec("echo '" + tokenVal.replace(/'/g, "'\\''") + "' > " + TOKEN_PATH);
+      exec("chmod 600 " + TOKEN_PATH);
+      // Mask display
+      tokenInput.value = tokenVal.substring(0, 8) + '...' + tokenVal.substring(tokenVal.length - 4);
+      tokenInput.setAttribute('data-full', tokenVal);
+    }
+  } else {
+    exec("rm -f " + TOKEN_PATH);
+    ghToken = '';
+  }
+
   document.getElementById('status').textContent = 'Configuration saved \u2713';
 }
 
@@ -393,7 +465,7 @@ function checkNow() {
   for (var i = 0; i < tracked.length; i++) {
     var t = tracked[i];
     // Collapse JSON to one line with tr to bypass first-line-only exec()
-    var result = exec("curl -sf --connect-timeout 15 https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
+    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
     var badge = document.getElementById('upd-' + t.id);
 
     if (!result || result.length < 5) {
@@ -490,7 +562,7 @@ function updateModule(modId, assetUrl, btn) {
   var zipPath = '/data/local/tmp/muc_' + modId + '.zip';
 
   // Download the release zip
-  var dlResult = exec("curl -Lf --connect-timeout 30 -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
+  var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
   if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
     btn.textContent = '\u2191 Update';
     btn.className = 'btn-update';
@@ -583,8 +655,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v2.5.2.2-it (7455)', 'v2.5.2'],
-    ['v2.5.2.0-0419e67', 'v1.5.2+_R26']
+    ['v2.6.2-it (7455)', 'v2.6'],
+    ['v2.6.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -623,7 +695,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v2.5.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v2.6</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -655,7 +727,42 @@ function detectKsuPackage() {
   debugLog.push({ detect: 'ksu_package', source: 'none', result: 'not found' });
 }
 
+function toggleToken() {
+  var cb = document.getElementById('token-toggle');
+  var body = document.getElementById('token-body');
+  var section = document.getElementById('token-section');
+  // If called from div click, toggle the checkbox
+  if (!event || event.target !== cb) cb.checked = !cb.checked;
+  body.className = cb.checked ? 'token-body visible' : 'token-body';
+  section.className = cb.checked ? 'token-section open' : 'token-section';
+  if (!cb.checked) {
+    // Clear token
+    document.getElementById('token-input').value = '';
+    exec("rm -f " + TOKEN_PATH);
+    ghToken = '';
+  }
+}
+
+function loadToken() {
+  var saved = exec("cat " + TOKEN_PATH + " 2>/dev/null").trim();
+  if (saved) {
+    ghToken = saved;
+    document.getElementById('token-toggle').checked = true;
+    document.getElementById('token-body').className = 'token-body visible';
+    document.getElementById('token-section').className = 'token-section open';
+    // Show masked token
+    document.getElementById('token-input').value = saved.substring(0, 8) + '...' + saved.substring(saved.length - 4);
+    document.getElementById('token-input').setAttribute('data-full', saved);
+  }
+}
+
+function curlAuth() {
+  if (ghToken) return " -H 'Authorization: token " + ghToken + "'";
+  return "";
+}
+
 detectKsuPackage();
+loadToken();
 loadModules();
 </script>
 </body>
