@@ -5,6 +5,7 @@ TRIGGER="$MODDIR/notify_trigger"
 LOGFILE="$MODDIR/service.log"
 LAST_NOTIF="$MODDIR/last_notif"
 UPDATE_CACHE="/data/adb/muc_update_cache"
+TOKEN_FILE="/data/adb/muc_token"
 CHECK_INTERVAL=86400  # 24 hours
 POLL_INTERVAL=60      # check trigger file every 60s
 
@@ -33,6 +34,17 @@ done
 if [ "$net_wait" -ge 90 ]; then
     log "network timeout after 90s — proceeding anyway"
 fi
+
+curl_auth() {
+    if [ -f "$TOKEN_FILE" ]; then
+        local token=$(cat "$TOKEN_FILE" 2>/dev/null)
+        if [ -n "$token" ]; then
+            echo "-H 'Authorization: token $token'"
+            return
+        fi
+    fi
+    echo ""
+}
 
 send_notification() {
     local title="$1"
@@ -121,7 +133,8 @@ check_updates() {
         fi
         log "  installed: $installed"
 
-        local response=$(curl -sf --connect-timeout 5 "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
+        local auth_header=$(curl_auth)
+        local response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
         if [ -z "$response" ]; then
             log "  curl failed for $repo"
             continue
