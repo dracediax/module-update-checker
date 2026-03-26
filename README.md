@@ -70,6 +70,22 @@ You can manually enter any `owner/repo` for modules not in this list.
 ---
 
 <details>
+<summary><b>Battery Impact</b></summary>
+
+**Negligible.** The module has no continuous background activity.
+
+- **service.sh** runs a `sleep 60` loop to check for a trigger file — this is a simple file existence check, not a network call. CPU usage is effectively zero.
+- **API calls** only happen on boot (once) and every 24 hours (once). With 8 tracked modules, that's 8 short HTTPS requests per day.
+- **The WebUI** only runs while you have it open. No background WebView, no persistent process. API stats are read from a file — no polling or timers.
+- **Notifications** use Android's built-in `cmd notification post` — no persistent service or wake lock.
+
+In short: one brief network burst on boot, then the module sleeps until the next day.
+
+</details>
+
+---
+
+<details>
 <summary><b>Settings</b></summary>
 
 The WebUI has a **Settings** panel with the following options:
