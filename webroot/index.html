@@ -70,6 +70,18 @@
     letter-spacing: 1px; margin: 20px 0 8px;
   }
   .loading { text-align: center; padding: 40px; color: #666; }
+  .progress-wrap {
+    background: #0f1a30; border-radius: 6px; height: 6px;
+    margin-top: 8px; overflow: hidden; display: none;
+  }
+  .progress-bar {
+    height: 100%; background: #4466aa; border-radius: 6px;
+    width: 0%; transition: width 0.3s ease;
+  }
+  .check-status {
+    text-align: center; font-size: 12px; color: #666;
+    margin-top: 6px; min-height: 16px;
+  }
   .dbg-section {
     background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
     margin: 10px 0; padding: 12px; font-family: monospace;
@@ -272,6 +284,8 @@
 <button class="btn btn-check" onclick="checkNow()">Check for Updates Now</button>
 <button class="btn" id="debug-btn" style="display:none;background:#333;margin-top:8px;font-size:13px" onclick="showDebug()">Show Debug Info</button>
 <p class="status" id="status"></p>
+<div class="progress-wrap" id="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+<div class="check-status" id="check-status"></div>
 <div id="debug-out" style="display:none"></div>
 
 <script>
@@ -593,6 +607,12 @@ function checkNow() {
     return;
   }
 
+  var progressWrap = document.getElementById('progress-wrap');
+  var progressBar = document.getElementById('progress-bar');
+  var checkStatus = document.getElementById('check-status');
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+
   var updates = 0;
   var checked = 0;
   var errors = 0;
@@ -601,6 +621,15 @@ function checkNow() {
 
   for (var i = 0; i < tracked.length; i++) {
     var t = tracked[i];
+    var pct = Math.round(((i + 1) / tracked.length) * 100);
+    progressBar.style.width = pct + '%';
+    // Find module name for status display
+    var modName = t.id;
+    for (var mn = 0; mn < modules.length; mn++) {
+      if (modules[mn].id === t.id) { modName = modules[mn].name; break; }
+    }
+    checkStatus.textContent = 'Checking ' + modName + ' (' + (i + 1) + '/' + tracked.length + ')';
+
     var badge = document.getElementById('upd-' + t.id);
     var isCiOnly = CI_REPOS[t.repo] || false;
     var ciMuted = t.ignoreCi || false;
@@ -719,6 +748,10 @@ function checkNow() {
   } else {
     exec("rm -f /data/adb/muc_update_cache");
   }
+
+  // Hide progress bar
+  progressWrap.style.display = 'none';
+  checkStatus.textContent = '';
 
   var msg = '';
   if (updates > 0) msg = updates + ' update(s) available!';
@@ -855,8 +888,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.6.2-it (7455)', 'v3.6'],
-    ['v3.6.0-0419e67', 'v1.5.2+_R26']
+    ['v3.6.1.2-it (7455)', 'v3.6.1'],
+    ['v3.6.1.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -895,7 +928,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.6</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.6.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
