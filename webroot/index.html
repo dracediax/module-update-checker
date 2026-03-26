@@ -291,7 +291,8 @@ var KNOWN_REPOS = {
   'abootloop': 'Kolass2004/anti-bootloop-module',
   'dmverity-props-spoof': 'dracediax/dmverity-props-spoof',
   'module-update-checker': 'dracediax/module-update-checker',
-  'zygisk_lsposed': 'JingMatrix/LSPosed'
+  'zygisk_lsposed': 'JingMatrix/LSPosed',
+  'teesimulator': 'JingMatrix/TEESimulator'
 };
 
 var modules = [];
@@ -761,8 +762,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.1.2.2-it (7455)', 'v3.1.2'],
-    ['v3.1.2.0-0419e67', 'v1.5.2+_R26']
+    ['v3.1.3.2-it (7455)', 'v3.1.3'],
+    ['v3.1.3.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -801,7 +802,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.1.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.1.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
