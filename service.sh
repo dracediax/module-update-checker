@@ -38,6 +38,22 @@ if [ "$net_wait" -ge 90 ]; then
     log "network timeout after 90s — proceeding anyway"
 fi
 
+# Install/update companion APK if not installed or outdated
+if [ -f "$MODDIR/muc-helper.apk" ]; then
+    installed_ver=$(pm dump com.dracediax.muc 2>/dev/null | grep versionCode | head -1 | tr -dc '0-9')
+    if [ -z "$installed_ver" ]; then
+        log "installing companion APK..."
+        pm install -r -g "$MODDIR/muc-helper.apk" >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            log "companion APK installed"
+        else
+            log "companion APK install failed"
+        fi
+    else
+        log "companion APK already installed (v$installed_ver)"
+    fi
+fi
+
 track_api_call() {
     local now=$(date +%s)
     local hour_start=0
