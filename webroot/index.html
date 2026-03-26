@@ -271,14 +271,6 @@
   </div>
 
   <div class="setting-group">
-    <h3>Shortcut</h3>
-    <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
-    <div class="setting-info">
-      Creates a home screen shortcut to open Module Update Checker directly.
-    </div>
-  </div>
-
-  <div class="setting-group">
     <h3>Advanced</h3>
     <div class="setting-row">
       <input type="checkbox" id="debug-toggle">
@@ -912,8 +904,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.7.1.2-it (7455)', 'v3.7.1'],
-    ['v3.7.1.0-0419e67', 'v1.5.2+_R26']
+    ['v3.7.2.2-it (7455)', 'v3.7.2'],
+    ['v3.7.2.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -952,7 +944,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.7.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.7.2</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1096,33 +1088,6 @@ function updateApiStats() {
 function curlAuth() {
   if (ghToken) return " -H 'Authorization: token " + ghToken + "'";
   return "";
-}
-
-function addShortcut() {
-  var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
-  if (!pkg) {
-    document.getElementById('status').textContent = 'Could not detect KSU Manager package';
-    return;
-  }
-
-  // Try multiple shortcut methods
-  // Method 1: Legacy shortcut broadcast (works on many launchers)
-  var r1 = exec("am broadcast -a com.android.launcher.action.INSTALL_SHORTCUT " +
-    "--es android.intent.extra.shortcut.NAME 'Module Updates' " +
-    "--ez duplicate false " +
-    "-e android.intent.extra.shortcut.INTENT " +
-    "'#Intent;action=android.intent.action.MAIN;component=" + pkg + "/.ui.webui.WebUIActivity;" +
-    "S.id=module-update-checker;end' 2>&1");
-
-  // Method 2: Direct activity launch shortcut via am
-  var r2 = exec("am start -a android.intent.action.CREATE_SHORTCUT " +
-    "-n " + pkg + "/.ui.webui.WebUIActivity " +
-    "--es id module-update-checker 2>&1");
-
-  debugLog.push({ shortcut: 'method1', result: r1 });
-  debugLog.push({ shortcut: 'method2', result: r2 });
-
-  document.getElementById('status').textContent = 'Shortcut request sent — check your home screen';
 }
 
 // Scroll focused input into view when keyboard opens
