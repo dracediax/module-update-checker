@@ -80,13 +80,14 @@ Controls when `service.sh` checks for updates after a reboot:
 
 | Mode | Behavior |
 |------|----------|
-| **Always** | Check every boot (default) — but skips if last check was less than 1 hour ago, so rebooting 5 times in 30 minutes only triggers 1 check |
-| **Daily** | Only check if the last check (boot or manual) was 24+ hours ago — reboot 10 times today and it only checks once |
-| **Manual** | Never check on boot, no background checks at all — only when you press "Check for Updates Now" in the WebUI |
+| **Every boot** | Always checks after reboot, no cooldown — uses an API call every time |
+| **Every boot (skip if checked <1h ago)** | Default. Checks on boot but skips if last check was less than 1 hour ago — rebooting 5 times in 30 minutes only triggers 1 check |
+| **Once a day** | Only checks if 24+ hours since last check — reboot 10 times today, only checks once |
+| **Manual only** | No auto-checks at all — only when you press "Check for Updates Now" in the WebUI |
 
-All three modes still allow manual checks via the WebUI button. The 24-hour periodic re-check (while the phone stays on) runs in Always and Daily modes, but not Manual.
+All modes still allow manual checks via the WebUI button.
 
-**Recommendation:** Reboot once a day or less? Leave it on "Always". Reboot multiple times a day? Use "Daily".
+**Recommendation:** Leave it on the default. Switch to "Every boot" only if you need instant checks and don't reboot often. Use "Once a day" if you reboot frequently.
 
 ### GitHub Token (Optional)
 
