@@ -676,11 +676,11 @@ function checkNow() {
       if (releaseAsset) {
         badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
-    } else if (hasCiUpdate && isCiOnly && !ciMuted) {
-      // CI-only repo with no releases — counts for notification (unless muted)
+    } else if (hasCiUpdate && !ciMuted) {
+      // CI build available and not muted — counts for notification
       updates++;
       updateNames.push(mod.name + ': ' + ciLatest);
-      cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
+      if (isCiOnly) cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
     }
 
     // Show CI info (informational only when release is up to date)
@@ -694,12 +694,13 @@ function checkNow() {
       badgeHtml += '</div>';
     }
 
-    if (hasReleaseUpdate || (hasCiUpdate && isCiOnly && !ciMuted)) {
+    if (hasReleaseUpdate || (hasCiUpdate && !ciMuted)) {
+      // Has update (release or unmuted CI)
       if (badge) {
         badge.innerHTML = badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
     } else {
-      // Up to date (or CI-only muted) — show checkmark, plus CI info if available
+      // Up to date — show checkmark, plus muted CI info if available
       if (badge) {
         badge.innerHTML = '<span class="up-to-date">\u2713</span>' + (hasCiUpdate ? badgeHtml : '') + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
@@ -848,8 +849,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.5.2-it (7455)', 'v3.5.5'],
-    ['v3.5.5.0-0419e67', 'v1.5.2+_R26']
+    ['v3.5.6.2-it (7455)', 'v3.5.6'],
+    ['v3.5.6.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -888,7 +889,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.5</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.6</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
