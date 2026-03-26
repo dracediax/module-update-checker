@@ -663,36 +663,43 @@ function checkNow() {
     var installedClean = normalizeVersion(mod.version);
     var badgeHtml = '';
     var hasReleaseUpdate = releaseLatest && (normalizeVersion(releaseLatest) !== installedClean);
-    var hasCiUpdate = ciLatest ? true : false; // CI always shows if present
+    var hasCiUpdate = ciLatest && !ciIgnored;
 
-    if (hasReleaseUpdate || hasCiUpdate) {
-      // Show release update
-      if (hasReleaseUpdate) {
-        updates++;
-        updateNames.push(mod.name + ': ' + releaseLatest);
-        cacheLines.push(t.id + '|' + releaseLatest + '|' + (releaseAsset || ''));
-        badgeHtml += '<span class="update-available">\u2191 ' + escapeHtml(releaseLatest) + '</span>';
-        if (releaseAsset) {
-          badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
-        }
-      } else {
-        badgeHtml += '<span class="up-to-date">\u2713 release up to date</span>';
+    if (hasReleaseUpdate) {
+      // Release update — counts for notification
+      updates++;
+      updateNames.push(mod.name + ': ' + releaseLatest);
+      cacheLines.push(t.id + '|' + releaseLatest + '|' + (releaseAsset || ''));
+      badgeHtml += '<span class="update-available">\u2191 ' + escapeHtml(releaseLatest) + '</span>';
+      if (releaseAsset) {
+        badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
+    } else if (hasCiUpdate && isCiOnly) {
+      // CI-only repo with no releases — counts for notification
+      updates++;
+      updateNames.push(mod.name + ': ' + ciLatest);
+      cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
+    }
 
-      // Show CI build (below release)
-      if (hasCiUpdate && !ciIgnored) {
-        if (!hasReleaseUpdate) { updates++; updateNames.push(mod.name + ': ' + ciLatest); }
-        badgeHtml += '<div style="margin-top:6px"><span class="update-available">CI: ' + escapeHtml(ciLatest) + '</span>';
-        if (ciAsset && ghToken) {
-          badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Download CI build</button>';
-        } else if (!ghToken && isCiOnly) {
-          badgeHtml += '<span class="update-status" style="color:#d29922">Token required for CI downloads</span>';
-        }
-        badgeHtml += '</div>';
+    // Show CI info (informational only when release is up to date)
+    if (hasCiUpdate) {
+      badgeHtml += '<div style="margin-top:6px"><span style="color:#888;font-size:11px">CI: ' + escapeHtml(ciLatest) + '</span>';
+      if (ciAsset && ghToken) {
+        badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">Download</button>';
+      } else if (!ghToken && isCiOnly) {
+        badgeHtml += ' <span style="color:#d29922;font-size:11px">token required</span>';
       }
+      badgeHtml += '</div>';
+    }
 
+    if (hasReleaseUpdate || (hasCiUpdate && isCiOnly)) {
       if (badge) {
         badge.innerHTML = badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
+      }
+    } else if (hasCiUpdate) {
+      // Release up to date, CI shown as info only
+      if (badge) {
+        badge.innerHTML = '<span class="up-to-date">\u2713</span>' + badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
     } else {
       if (badge) badge.innerHTML = '<span class="up-to-date">\u2713</span>';
@@ -841,8 +848,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.1.2-it (7455)', 'v3.5.1'],
-    ['v3.5.1.0-0419e67', 'v1.5.2+_R26']
+    ['v3.5.2.2-it (7455)', 'v3.5.2'],
+    ['v3.5.2.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -881,7 +888,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.2</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
