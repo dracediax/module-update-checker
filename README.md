@@ -55,7 +55,7 @@ These modules are auto-detected — just toggle them on:
 | ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) |
 | ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) |
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) |
-| Tricky Store | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) |
+| TEESimulator (tricky_store) | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) |
 | SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) |
@@ -63,9 +63,10 @@ These modules are auto-detected — just toggle them on:
 | NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) |
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) |
 | DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
-| TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) |
-| Vector (LSPosed) | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
+| Vector (zygisk_vector) | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
 | Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
+| Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) |
+| Wireless ADB | [dracediax/wireless-adb](https://github.com/dracediax/wireless-adb) |
 
 You can manually enter any `owner/repo` for modules not in this list.
 
