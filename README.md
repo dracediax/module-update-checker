@@ -70,26 +70,42 @@ You can manually enter any `owner/repo` for modules not in this list.
 ---
 
 <details>
-<summary><b>GitHub Token (Optional)</b></summary>
+<summary><b>Settings</b></summary>
 
-By default, the module uses unauthenticated GitHub API requests, limited to **60 requests/hour**. This is enough for most users.
+The WebUI has a **Settings** panel with the following options:
 
-If you track many modules or check frequently, you can add a **Personal Access Token** to increase the limit to **5,000 requests/hour**.
+### Boot Check Mode
 
-### Setup
+Controls when `service.sh` checks for updates after a reboot:
+
+| Mode | Behavior |
+|------|----------|
+| **Always** | Check every boot (default) — skips if last check was < 1 hour ago |
+| **Daily** | Only check if last check was 24+ hours ago |
+| **Manual** | Never check on boot — only when you press "Check for Updates Now" |
+
+"Daily" is recommended if you reboot frequently — saves API calls while still catching updates.
+
+### GitHub Token (Optional)
+
+A Personal Access Token increases the API rate limit from **60 to 5,000 requests/hour**. The module works fine without one.
+
+**Setup:**
 1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
 2. Click **Generate new token (classic)**
 3. Name it (e.g. "module-update-checker")
 4. **Leave all scope checkboxes unchecked** — no permissions needed
-5. Generate and copy the token
-6. In the WebUI, enable "Use GitHub Token", paste it, and Save Configuration
+5. In the WebUI Settings, enable "Use Personal Access Token", paste it, Save Configuration
 
-### Security
-- The token is stored in **plaintext** at `/data/adb/muc_token` with `chmod 600`
-- Any app with root access can read it
-- Since no scopes are granted, the token can only read public repos
-- It is tied to your GitHub account — API calls will show as authenticated by you
-- **The module works fully without a token** — this is purely optional
+**Security:** Token is stored in plaintext at `/data/adb/muc_token` (chmod 600). Any root app can read it. No scopes = can only read public repos, but it's tied to your GitHub account.
+
+### API Usage Stats
+
+The Settings panel shows real-time API usage:
+- **Calls this hour** — how many API requests have been made
+- **Hourly limit** — 60 (no token) or 5,000 (with token)
+- **Resets in** — countdown until the hourly limit resets
+- **Last check** — how long ago the last update check ran
 
 </details>
 
@@ -134,6 +150,9 @@ After boot, `service.sh` waits for network connectivity, then runs continuously:
 | `/data/adb/muc_update_cache` | Cached check results for instant WebUI display |
 | `/data/adb/muc_ksu_package` | Detected KSU manager package name |
 | `/data/adb/muc_token` | GitHub Personal Access Token (optional, chmod 600) |
+| `/data/adb/muc_settings` | User settings (boot check mode) |
+| `/data/adb/muc_api_stats` | API call counter and hour window |
+| `/data/adb/muc_last_check` | Timestamp of last update check |
 
 </details>
 
