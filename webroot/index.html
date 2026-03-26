@@ -795,11 +795,11 @@ function checkNow() {
       var safeTitle = notifTitle.replace(/'/g, "'\\''");
       var safeText = notifText.replace(/'/g, "'\\''");
 
-      // Try companion APK (explicit broadcast — required on Android 14+)
-      var notifResult = exec("am broadcast -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "' 2>&1");
+      // Try companion APK (explicit broadcast with include-stopped flag)
+      var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "' 2>&1");
 
       // Fallback to shell if companion not installed
-      if (!notifResult || notifResult.indexOf('result=0') !== -1 || notifResult.indexOf('Error') !== -1) {
+      if (!notifResult || notifResult.indexOf('not found') !== -1 || notifResult.indexOf('Error') !== -1) {
         exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
       }
     }
@@ -917,8 +917,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v4.0.3.2-it (7455)', 'v4.0.3'],
-    ['v4.0.3.0-0419e67', 'v1.5.2+_R26']
+    ['v4.1.2-it (7455)', 'v4.1'],
+    ['v4.1.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -957,7 +957,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.0.3</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
