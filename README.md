@@ -155,7 +155,7 @@ After boot, `service.sh` waits for network connectivity, then runs continuously:
 |------|-------------|
 | **~30-60s after boot** | Initial check — fetches latest versions from GitHub |
 | **Every 24 hours** | Automatic re-check — catches updates even if you don't reboot |
-| **Every 60 seconds** | Polls for WebUI trigger files (instant notification relay) |
+| **Every 60 seconds** | Polls for trigger files (lightweight file check, no network) |
 | **Manual check** | Triggered from WebUI "Check for Updates Now" button |
 
 - Results are cached to `/data/adb/muc_update_cache` — WebUI loads these instantly on open
