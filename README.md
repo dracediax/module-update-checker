@@ -55,7 +55,7 @@ These modules are auto-detected — just toggle them on:
 | ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) |
 | ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) |
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) |
-| TEESimulator (tricky_store) | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) |
+| TrickyStore / TEESimulator | Enter manually: `5ec1cff/TrickyStore` or `JingMatrix/TEESimulator` |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) |
 | SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) |
