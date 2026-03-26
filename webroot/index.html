@@ -112,34 +112,61 @@
     background: none; border: none; color: #aac; font-size: 18px; cursor: pointer;
   }
   @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
-  .token-section {
-    background: #16213e; border-radius: 12px; padding: 14px 16px;
-    margin-top: 16px;
+  .settings-toggle {
+    width: 100%; padding: 12px; background: #1a2a4a; color: #8899bb;
+    border: 1px solid #334477; border-radius: 12px; font-size: 14px;
+    font-weight: 500; cursor: pointer; margin-top: 16px; text-align: left;
   }
-  .token-section.open { border: 1px solid #334477; }
-  .token-header {
-    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  .settings-toggle:active { background: #16213e; }
+  .settings-panel {
+    display: none; background: #16213e; border: 1px solid #334477;
+    border-top: none; border-radius: 0 0 12px 12px; padding: 16px;
+    margin-top: -4px;
   }
-  .token-header input[type="checkbox"] {
-    width: 18px; height: 18px; accent-color: #4466aa;
+  .settings-panel.open { display: block; }
+  .setting-group {
+    margin-bottom: 16px; padding-bottom: 16px;
+    border-bottom: 1px solid #1a2a3a;
   }
-  .token-header label { font-size: 14px; color: #ccc; cursor: pointer; }
-  .token-body { display: none; margin-top: 12px; }
-  .token-body.visible { display: block; }
-  .token-body input[type="text"] {
+  .setting-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .setting-group h3 {
+    font-size: 13px; color: #8899bb; margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .setting-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .setting-row input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: #4466aa; flex-shrink: 0;
+  }
+  .setting-row label { font-size: 13px; color: #ccc; cursor: pointer; }
+  .setting-row select {
+    background: #0f1a30; border: 1px solid #334; border-radius: 8px;
+    padding: 6px 10px; color: #ccc; font-size: 13px; outline: none;
+  }
+  .setting-input {
     width: 100%; background: #0f1a30; border: 1px solid #334;
     border-radius: 8px; padding: 8px 10px; color: #ccc;
-    font-size: 13px; outline: none; font-family: monospace;
+    font-size: 13px; outline: none; font-family: monospace; margin-top: 6px;
   }
-  .token-body input[type="text"]:focus { border-color: #5577bb; }
-  .token-info {
-    font-size: 12px; color: #888; line-height: 1.6; margin-top: 10px;
+  .setting-input:focus { border-color: #5577bb; }
+  .setting-info {
+    font-size: 12px; color: #888; line-height: 1.6; margin-top: 8px;
   }
-  .token-info a { color: #5588cc; text-decoration: none; }
-  .token-warn {
+  .setting-info a { color: #5588cc; text-decoration: none; }
+  .setting-warn {
     font-size: 11px; color: #d29922; background: #2a2a1a;
     border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.5;
   }
+  .api-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+  }
+  .api-stat {
+    background: #0f1a30; border-radius: 8px; padding: 10px;
+    text-align: center;
+  }
+  .api-stat .val { font-size: 20px; font-weight: 600; color: #fff; }
+  .api-stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -155,27 +182,72 @@
 <div class="section-label">Installed Modules</div>
 <div id="modules-list"><div class="loading">Loading modules...</div></div>
 
-<div class="token-section" id="token-section">
-  <div class="token-header" onclick="toggleToken()">
-    <input type="checkbox" id="token-toggle" onclick="event.stopPropagation(); toggleToken()">
-    <label for="token-toggle">Use GitHub Token (optional)</label>
-  </div>
-  <div class="token-body" id="token-body">
-    <input type="text" id="token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
-    <div class="token-info">
-      <b>What is this?</b> A GitHub Personal Access Token increases your API rate limit from <b>60 to 5,000 requests/hour</b>. Without a token, the module works fine — you only need this if you track many modules or check very frequently.
-      <br><br>
-      <b>How to get one:</b><br>
-      1. Go to <a href="https://github.com/settings/tokens">github.com/settings/tokens</a><br>
-      2. Click "Generate new token (classic)"<br>
-      3. Name it (e.g. "module-update-checker")<br>
-      4. Leave all scope checkboxes <b>unchecked</b> — no permissions needed<br>
-      5. Generate and paste it here
+<button class="settings-toggle" onclick="toggleSettings()">Settings</button>
+<div class="settings-panel" id="settings-panel">
+
+  <div class="setting-group">
+    <h3>Boot Check</h3>
+    <div class="setting-row">
+      <label for="boot-mode">After reboot:</label>
+      <select id="boot-mode">
+        <option value="always">Always check for updates</option>
+        <option value="daily">Only if last check was 24h+ ago</option>
+        <option value="manual">Never (manual only)</option>
+      </select>
     </div>
-    <div class="token-warn">
-      Warning: The token is stored in plaintext at /data/adb/muc_token. Any app with root access can read it. Since no scopes are granted, the token can only read public repos — but it is tied to your GitHub account.
+    <div class="setting-info">
+      Controls when service.sh checks GitHub after a reboot. "Daily" is recommended for frequent rebooters — saves API calls while still catching updates.
     </div>
   </div>
+
+  <div class="setting-group">
+    <h3>GitHub Token</h3>
+    <div class="setting-row">
+      <input type="checkbox" id="token-toggle" onchange="toggleTokenBody()">
+      <label for="token-toggle">Use Personal Access Token</label>
+    </div>
+    <div id="token-body" style="display:none">
+      <input type="text" class="setting-input" id="token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+      <div class="setting-info">
+        Increases API rate limit from <b>60 to 5,000 requests/hour</b>. The module works fine without one.<br><br>
+        <b>How to get a token:</b><br>
+        1. Go to <a href="https://github.com/settings/tokens">github.com/settings/tokens</a><br>
+        2. Click "Generate new token (classic)"<br>
+        3. Name it (e.g. "module-update-checker")<br>
+        4. Leave all scope checkboxes <b>unchecked</b><br>
+        5. Generate and paste it here
+      </div>
+      <div class="setting-warn">
+        Token is stored in plaintext at /data/adb/muc_token (chmod 600). Any root app can read it. No scopes = can only read public repos, but it's tied to your GitHub account.
+      </div>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <h3>API Usage</h3>
+    <div class="api-stats">
+      <div class="api-stat">
+        <div class="val" id="api-used">-</div>
+        <div class="lbl">Calls this hour</div>
+      </div>
+      <div class="api-stat">
+        <div class="val" id="api-limit">-</div>
+        <div class="lbl">Hourly limit</div>
+      </div>
+      <div class="api-stat">
+        <div class="val" id="api-reset">-</div>
+        <div class="lbl">Resets in</div>
+      </div>
+      <div class="api-stat">
+        <div class="val" id="api-last">-</div>
+        <div class="lbl">Last check</div>
+      </div>
+    </div>
+    <div class="setting-info" style="margin-top:10px">
+      Each tracked module uses 1 API call per check. Usage resets every hour.
+    </div>
+  </div>
+
 </div>
 
 <button class="btn" id="reboot-btn" style="display:none;background:#aa3333;margin-bottom:8px;font-weight:600" onclick="rebootNow()">Reboot Now</button>
@@ -210,8 +282,13 @@ var config = [];
 var debugLog = [];
 var ksuPackage = '';
 var ghToken = '';
+var bootMode = 'always';
+var apiCalls = 0;
+var apiHourStart = 0;
 var KSU_PKG_PATH = '/data/adb/muc_ksu_package';
 var TOKEN_PATH = '/data/adb/muc_token';
+var SETTINGS_PATH = '/data/adb/muc_settings';
+var API_STATS_PATH = '/data/adb/muc_api_stats';
 
 function exec(cmd) {
   var apis = [
@@ -417,7 +494,7 @@ function saveConfig() {
   exec("echo '" + json.replace(/'/g, "'\\''") + "' > " + CONFIG_PATH);
   config = newConfig;
 
-  // Save or clear token
+  // Save token
   var tokenCb = document.getElementById('token-toggle');
   if (tokenCb.checked) {
     var tokenInput = document.getElementById('token-input');
@@ -426,7 +503,6 @@ function saveConfig() {
       ghToken = tokenVal;
       exec("echo '" + tokenVal.replace(/'/g, "'\\''") + "' > " + TOKEN_PATH);
       exec("chmod 600 " + TOKEN_PATH);
-      // Mask display
       tokenInput.value = tokenVal.substring(0, 8) + '...' + tokenVal.substring(tokenVal.length - 4);
       tokenInput.setAttribute('data-full', tokenVal);
     }
@@ -434,6 +510,10 @@ function saveConfig() {
     exec("rm -f " + TOKEN_PATH);
     ghToken = '';
   }
+
+  // Save boot mode
+  bootMode = document.getElementById('boot-mode').value;
+  exec("echo 'boot_check=" + bootMode + "' > " + SETTINGS_PATH);
 
   document.getElementById('status').textContent = 'Configuration saved \u2713';
 }
@@ -466,6 +546,7 @@ function checkNow() {
     var t = tracked[i];
     // Collapse JSON to one line with tr to bypass first-line-only exec()
     var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
+    trackApiCall();
     var badge = document.getElementById('upd-' + t.id);
 
     if (!result || result.length < 5) {
@@ -551,6 +632,11 @@ function checkNow() {
     // Write trigger file for service.sh background checks
     exec("echo '" + safeTitle + "|" + safeText + "' > /data/adb/modules/module-update-checker/notify_trigger");
   }
+
+  // Save last check timestamp
+  var now = Math.floor(Date.now() / 1000);
+  exec("echo '" + now + "' > /data/adb/muc_last_check");
+  updateApiStats();
 }
 
 function updateModule(modId, assetUrl, btn) {
@@ -655,8 +741,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v2.6.2-it (7455)', 'v2.6'],
-    ['v2.6.0-0419e67', 'v1.5.2+_R26']
+    ['v3.0.2-it (7455)', 'v3.0'],
+    ['v3.0.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -695,7 +781,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v2.6</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.0</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -727,32 +813,104 @@ function detectKsuPackage() {
   debugLog.push({ detect: 'ksu_package', source: 'none', result: 'not found' });
 }
 
-function toggleToken() {
+function toggleSettings() {
+  var panel = document.getElementById('settings-panel');
+  panel.className = panel.className.indexOf('open') !== -1 ? 'settings-panel' : 'settings-panel open';
+  if (panel.className.indexOf('open') !== -1) updateApiStats();
+}
+
+function toggleTokenBody() {
   var cb = document.getElementById('token-toggle');
-  var body = document.getElementById('token-body');
-  var section = document.getElementById('token-section');
-  // If called from div click, toggle the checkbox
-  if (!event || event.target !== cb) cb.checked = !cb.checked;
-  body.className = cb.checked ? 'token-body visible' : 'token-body';
-  section.className = cb.checked ? 'token-section open' : 'token-section';
+  document.getElementById('token-body').style.display = cb.checked ? 'block' : 'none';
   if (!cb.checked) {
-    // Clear token
     document.getElementById('token-input').value = '';
     exec("rm -f " + TOKEN_PATH);
     ghToken = '';
   }
 }
 
-function loadToken() {
+function loadSettings() {
+  // Load token
   var saved = exec("cat " + TOKEN_PATH + " 2>/dev/null").trim();
   if (saved) {
     ghToken = saved;
     document.getElementById('token-toggle').checked = true;
-    document.getElementById('token-body').className = 'token-body visible';
-    document.getElementById('token-section').className = 'token-section open';
-    // Show masked token
+    document.getElementById('token-body').style.display = 'block';
     document.getElementById('token-input').value = saved.substring(0, 8) + '...' + saved.substring(saved.length - 4);
     document.getElementById('token-input').setAttribute('data-full', saved);
+  }
+
+  // Load boot mode
+  var settings = exec("cat " + SETTINGS_PATH + " 2>/dev/null").trim();
+  if (settings) {
+    var modeMatch = settings.match(/boot_check=(\w+)/);
+    if (modeMatch) bootMode = modeMatch[1];
+  }
+  document.getElementById('boot-mode').value = bootMode;
+
+  // Load API stats
+  loadApiStats();
+}
+
+function loadApiStats() {
+  var raw = exec("cat " + API_STATS_PATH + " 2>/dev/null").trim();
+  if (raw) {
+    var parts = raw.split('|');
+    if (parts.length >= 2) {
+      apiHourStart = parseInt(parts[0]) || 0;
+      apiCalls = parseInt(parts[1]) || 0;
+      // Reset if more than 1 hour has passed
+      var now = Math.floor(Date.now() / 1000);
+      if (now - apiHourStart > 3600) {
+        apiCalls = 0;
+        apiHourStart = now;
+      }
+    }
+  }
+  updateApiStats();
+}
+
+function saveApiStats() {
+  var now = Math.floor(Date.now() / 1000);
+  if (now - apiHourStart > 3600) {
+    apiCalls = 0;
+    apiHourStart = now;
+  }
+  exec("echo '" + apiHourStart + "|" + apiCalls + "' > " + API_STATS_PATH);
+}
+
+function trackApiCall() {
+  var now = Math.floor(Date.now() / 1000);
+  if (now - apiHourStart > 3600) {
+    apiCalls = 0;
+    apiHourStart = now;
+  }
+  apiCalls++;
+  saveApiStats();
+}
+
+function updateApiStats() {
+  var limit = ghToken ? 5000 : 60;
+  var now = Math.floor(Date.now() / 1000);
+  var elapsed = now - (apiHourStart || now);
+  var remaining = Math.max(0, 3600 - elapsed);
+  var mins = Math.floor(remaining / 60);
+  var secs = remaining % 60;
+
+  document.getElementById('api-used').textContent = apiCalls;
+  document.getElementById('api-limit').textContent = limit;
+  document.getElementById('api-reset').textContent = mins + 'm ' + secs + 's';
+
+  // Last check time
+  var lastRaw = exec("cat /data/adb/muc_last_check 2>/dev/null").trim();
+  if (lastRaw) {
+    var lastTs = parseInt(lastRaw);
+    var ago = now - lastTs;
+    if (ago < 60) document.getElementById('api-last').textContent = ago + 's ago';
+    else if (ago < 3600) document.getElementById('api-last').textContent = Math.floor(ago / 60) + 'm ago';
+    else document.getElementById('api-last').textContent = Math.floor(ago / 3600) + 'h ago';
+  } else {
+    document.getElementById('api-last').textContent = 'Never';
   }
 }
 
@@ -762,7 +920,7 @@ function curlAuth() {
 }
 
 detectKsuPackage();
-loadToken();
+loadSettings();
 loadModules();
 </script>
 </body>
