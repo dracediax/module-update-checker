@@ -64,6 +64,7 @@ These modules are auto-detected — just toggle them on:
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) |
 | DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
 | TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) |
+| Vector (LSPosed) | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
 | Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
 
 You can manually enter any `owner/repo` for modules not in this list.
