@@ -132,12 +132,12 @@ send_notification() {
 
     log "sending notification: $title | $text"
 
-    # Try companion APK first (shows as "Module Update Checker" with tap-to-open)
-    local result=$(am broadcast -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
+    # Try companion APK first (explicit broadcast — required on Android 14+)
+    local result=$(am broadcast -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
     log "companion app: $result"
 
-    # Fallback to shell notification if companion not installed
-    if echo "$result" | grep -qi "not found\|no receivers\|error"; then
+    # Fallback to shell if companion not installed or returned result=0
+    if echo "$result" | grep -qi "not found\|error\|result=0"; then
         log "companion not available, falling back to shell"
         result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$text'" 2>&1)
         log "shell notification: $result"
