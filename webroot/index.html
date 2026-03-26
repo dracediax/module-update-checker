@@ -610,20 +610,27 @@ function checkNow() {
   var progressWrap = document.getElementById('progress-wrap');
   var progressBar = document.getElementById('progress-bar');
   var checkStatus = document.getElementById('check-status');
+  var checkBtn = document.querySelector('.btn-check');
   progressWrap.style.display = 'block';
   progressBar.style.width = '0%';
+  if (checkBtn) checkBtn.disabled = true;
 
   var updates = 0;
   var checked = 0;
   var errors = 0;
   var updateNames = [];
   var cacheLines = [];
+  var idx = 0;
 
-  for (var i = 0; i < tracked.length; i++) {
+  function checkNext() {
+    if (idx >= tracked.length) {
+      finishCheck();
+      return;
+    }
+    var i = idx;
     var t = tracked[i];
     var pct = Math.round(((i + 1) / tracked.length) * 100);
     progressBar.style.width = pct + '%';
-    // Find module name for status display
     var modName = t.id;
     for (var mn = 0; mn < modules.length; mn++) {
       if (modules[mn].id === t.id) { modName = modules[mn].name; break; }
@@ -735,52 +742,56 @@ function checkNow() {
         badge.innerHTML = badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
     } else {
-      // Up to date — show checkmark, plus muted CI info if available
       if (badge) {
         badge.innerHTML = '<span class="up-to-date">\u2713</span>' + (hasCiUpdate ? badgeHtml : '') + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
     }
+
+    idx++;
+    setTimeout(checkNext, 10);
   }
 
-  // Write update cache for next WebUI load
-  if (cacheLines.length > 0) {
-    exec("echo '" + cacheLines.join('\n').replace(/'/g, "'\\''") + "' > /data/adb/muc_update_cache");
-  } else {
-    exec("rm -f /data/adb/muc_update_cache");
+  function finishCheck() {
+    // Write update cache
+    if (cacheLines.length > 0) {
+      exec("echo '" + cacheLines.join('\n').replace(/'/g, "'\\''") + "' > /data/adb/muc_update_cache");
+    } else {
+      exec("rm -f /data/adb/muc_update_cache");
+    }
+
+    // Hide progress bar
+    progressWrap.style.display = 'none';
+    checkStatus.textContent = '';
+    if (checkBtn) checkBtn.disabled = false;
+
+    var msg = '';
+    if (updates > 0) msg = updates + ' update(s) available!';
+    else msg = 'All modules up to date \u2713';
+    if (errors > 0) msg += ' (' + errors + ' failed to check)';
+    statusEl.textContent = msg;
+
+    // Notification
+    var notifTitle, notifText;
+    if (updates > 0) {
+      notifTitle = updates + ' module update' + (updates > 1 ? 's' : '') + ' available';
+      notifText = updateNames.join(' | ');
+    } else if (errors === 0) {
+      notifTitle = 'Module Update Checker';
+      notifText = 'All modules up to date';
+    }
+
+    if (notifTitle) {
+      var safeTitle = notifTitle.replace(/'/g, "'\\''");
+      var safeText = notifText.replace(/'/g, "'\\''");
+      exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
+    }
+
+    var now = Math.floor(Date.now() / 1000);
+    exec("echo '" + now + "' > /data/adb/muc_last_check");
+    updateApiStats();
   }
 
-  // Hide progress bar
-  progressWrap.style.display = 'none';
-  checkStatus.textContent = '';
-
-  var msg = '';
-  if (updates > 0) msg = updates + ' update(s) available!';
-  else msg = 'All modules up to date \u2713';
-  if (errors > 0) msg += ' (' + errors + ' failed to check)';
-  statusEl.textContent = msg;
-
-  // Try multiple notification methods and log results for debug
-  var notifTitle, notifText;
-  if (updates > 0) {
-    notifTitle = updates + ' module update' + (updates > 1 ? 's' : '') + ' available';
-    notifText = updateNames.join('\\n');
-  } else if (errors === 0) {
-    notifTitle = 'Module Update Checker';
-    notifText = 'All modules up to date';
-  }
-
-  if (notifTitle) {
-    var safeTitle = notifTitle.replace(/'/g, "'\\''");
-    var safeText = notifText.replace(/'/g, "'\\''");
-
-    // Post as shell user (uid 2000) — confirmed working method
-    exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
-  }
-
-  // Save last check timestamp
-  var now = Math.floor(Date.now() / 1000);
-  exec("echo '" + now + "' > /data/adb/muc_last_check");
-  updateApiStats();
+  checkNext();
 }
 
 function updateModule(modId, assetUrl, btn) {
@@ -888,8 +899,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.6.2.2-it (7455)', 'v3.6.2'],
-    ['v3.6.2.0-0419e67', 'v1.5.2+_R26']
+    ['v3.6.3.2-it (7455)', 'v3.6.3'],
+    ['v3.6.3.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -928,7 +939,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.6.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.6.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
