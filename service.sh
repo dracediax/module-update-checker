@@ -220,8 +220,10 @@ check_updates() {
         fi
         log "  latest: $latest"
 
-        local installed_clean=$(echo "$installed" | sed 's/^v//')
-        local latest_clean=$(echo "$latest" | sed 's/^v//')
+        # Normalize versions — must match WebUI's normalizeVersion()
+        # Strip: leading v, parenthetical metadata, -release suffix, commit hashes
+        local installed_clean=$(echo "$installed" | sed 's/^v//i; s/ *(.*) *//g; s/-release$//i; s/[-+][0-9a-f]\{6,\}$//i' | tr -d ' ')
+        local latest_clean=$(echo "$latest" | sed 's/^v//i; s/ *(.*) *//g; s/-release$//i; s/[-+][0-9a-f]\{6,\}$//i' | tr -d ' ')
 
         if [ "$installed_clean" != "$latest_clean" ]; then
             update_count=$((update_count + 1))
