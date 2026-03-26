@@ -13,10 +13,12 @@
 ## What It Does
 
 - Discovers all installed modules automatically
-- Checks GitHub for newer versions
+- Checks GitHub **releases and CI builds** for newer versions
 - **One-tap update** — download and install directly from the WebUI
-- **Automatic notifications** — checks on boot and every 24 hours, notifies you when updates are found
+- **Automatic notifications** — checks on boot and every 24 hours, notifies you when release updates are found
 - **Instant results** — background checks are cached, so the WebUI shows updates immediately
+- **Smart CI handling** — CI builds shown as info when release is current, only notifies for CI-only repos
+- **Per-module CI toggle** — ignore CI builds for repos you don't want nightly updates from
 
 ---
 
@@ -58,6 +60,7 @@ These modules are auto-detected — just toggle them on:
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) | |
 | TrickyStore | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) | Auto-detected by name, shares module ID `tricky_store` |
 | TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) | Auto-detected by name, shares module ID `tricky_store` |
+| TEESimulator-RS | [Enginex0/TEESimulator-RS](https://github.com/Enginex0/TEESimulator-RS) | Auto-detected by name, shares module ID `tricky_store` |
 | TEESimulator-RS | [Enginex0/TEESimulator-RS](https://github.com/Enginex0/TEESimulator-RS) | Auto-detected by name, shares module ID `tricky_store` |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) | |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) | |
@@ -211,9 +214,17 @@ Without a token: **60 requests/hour**. With a token: **5,000/hour**. Each tracke
 
 The update button only appears if the GitHub release contains a `.zip` file.
 
-### CI builds require a GitHub token
+### CI builds
 
-Some modules (like LSPosed Irena) only publish builds via GitHub Actions, not releases. The module checker can detect new CI builds, but **downloading artifacts requires a GitHub token** configured in Settings. Without a token, you'll see "CI build available" but can't download directly.
+Some modules (like LSPosed Irena) only publish builds via GitHub Actions, not releases.
+
+**How CI checking works:**
+- With a GitHub token: both releases AND CI builds are checked for every module
+- Without a token: CI is only checked as a fallback when no releases exist
+- **Release up to date?** CI info is shown as grey text — informational only, no notification
+- **CI-only repo?** CI build counts as an update and triggers notifications
+- **Downloading CI artifacts requires a GitHub token** (configure in Settings)
+- Each module has an "Ignore CI builds" checkbox to opt out
 
 </details>
 
