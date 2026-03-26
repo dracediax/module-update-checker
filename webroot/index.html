@@ -299,8 +299,14 @@ var KNOWN_REPOS = {
 // Some modules share the same ID (e.g. tricky_store is used by both TrickyStore and TEESimulator)
 var NAME_REPOS = [
   { match: /tee\s*simulator/i, repo: 'JingMatrix/TEESimulator' },
-  { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' }
+  { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' },
+  { match: /irena/i, repo: 're-zero001/LSPosed-Irena' }
 ];
+
+// Repos that use GitHub Actions CI builds instead of releases
+var CI_REPOS = {
+  're-zero001/LSPosed-Irena': true
+};
 
 function resolveRepo(id, name, dir) {
   // Check saved config first (handled elsewhere)
@@ -585,18 +591,65 @@ function checkNow() {
   for (var i = 0; i < tracked.length; i++) {
     var t = tracked[i];
     // Collapse JSON to one line with tr to bypass first-line-only exec()
-    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
-    trackApiCall();
     var badge = document.getElementById('upd-' + t.id);
+    var isCiRepo = CI_REPOS[t.repo] || false;
+    var latest = '';
+    var assetUrl = '';
+    var ciArtifact = false;
 
-    if (!result || result.length < 5) {
-      errors++;
-      if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">fetch failed</span>';
-      continue;
+    if (!isCiRepo) {
+      // Standard: check releases
+      var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
+      trackApiCall();
+
+      if (!result || result.length < 5) {
+        // No release — try CI as fallback
+        isCiRepo = true;
+      } else {
+        var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
+        latest = tagMatch ? tagMatch[1] : '';
+        if (!latest) isCiRepo = true; // No tag, try CI
+
+        var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
+        if (assetMatch) assetUrl = assetMatch[1];
+      }
     }
 
-    var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
-    var latest = tagMatch ? tagMatch[1] : '';
+    if (isCiRepo) {
+      // CI: check latest successful workflow run
+      var ciResult = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs?status=success&per_page=1' | tr -d '\\n'");
+      trackApiCall();
+
+      if (ciResult && ciResult.length > 5) {
+        var runIdMatch = ciResult.match(/"id"\s*:\s*(\d+)/);
+        var runDateMatch = ciResult.match(/"created_at"\s*:\s*"([^"]*)"/);
+        var headShaMatch = ciResult.match(/"head_sha"\s*:\s*"([^"]*)"/);
+
+        if (runDateMatch) {
+          var runDate = runDateMatch[1].substring(0, 10); // YYYY-MM-DD
+          var shortSha = headShaMatch ? headShaMatch[1].substring(0, 7) : '';
+          latest = 'CI-' + runDate + (shortSha ? '-' + shortSha : '');
+          ciArtifact = true;
+
+          // Get artifact download URL (requires token)
+          if (runIdMatch && ghToken) {
+            var artResult = exec("curl -sf --connect-timeout 10" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs/" + runIdMatch[1] + "/artifacts' | tr -d '\\n'");
+            trackApiCall();
+            if (artResult) {
+              var artUrlMatch = artResult.match(/"archive_download_url"\s*:\s*"([^"]*)"/);
+              if (artUrlMatch) assetUrl = artUrlMatch[1];
+            }
+          }
+        }
+      }
+
+      if (!latest) {
+        errors++;
+        if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no releases or CI builds</span>';
+        continue;
+      }
+    }
+
     if (!latest) {
       errors++;
       if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no tag</span>';
@@ -613,24 +666,30 @@ function checkNow() {
 
     // Normalize versions for comparison
     var installedClean = normalizeVersion(mod.version);
-    var latestClean = normalizeVersion(latest);
+    var latestClean = ciArtifact ? latest : normalizeVersion(latest);
+    // CI builds always show as "update available" since version format differs
+    var hasUpdate = ciArtifact ? true : (latestClean !== installedClean);
 
-    if (latestClean !== installedClean) {
+    if (hasUpdate) {
       updates++;
       updateNames.push(mod.name + ': ' + latest);
-
-      // Find .zip asset download URL
-      var assetUrl = '';
-      var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
-      if (assetMatch) assetUrl = assetMatch[1];
 
       // Add to cache
       cacheLines.push(t.id + '|' + latest + '|' + (assetUrl || ''));
 
       if (badge) {
-        badge.innerHTML = '<span class="update-available">\u2191 ' + escapeHtml(latest) + '</span>';
-        if (assetUrl) {
-          badge.innerHTML += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(assetUrl) + '\', this)">\u2191 Update to ' + escapeHtml(latest) + '</button>';
+        if (ciArtifact) {
+          badge.innerHTML = '<span class="update-available">CI build: ' + escapeHtml(latest) + '</span>';
+          if (assetUrl && ghToken) {
+            badge.innerHTML += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(assetUrl) + '\', this)">\u2191 Download CI build</button>';
+          } else if (!ghToken) {
+            badge.innerHTML += '<span class="update-status" style="color:#d29922">GitHub token required to download CI builds</span>';
+          }
+        } else {
+          badge.innerHTML = '<span class="update-available">\u2191 ' + escapeHtml(latest) + '</span>';
+          if (assetUrl) {
+            badge.innerHTML += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(assetUrl) + '\', this)">\u2191 Update to ' + escapeHtml(latest) + '</button>';
+          }
         }
         badge.innerHTML += '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
@@ -781,8 +840,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.3.2-it (7455)', 'v3.3'],
-    ['v3.3.0-0419e67', 'v1.5.2+_R26']
+    ['v3.4.2-it (7455)', 'v3.4'],
+    ['v3.4.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -821,7 +880,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.3</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.4</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
