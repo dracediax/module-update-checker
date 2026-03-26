@@ -49,26 +49,24 @@ That's it. After reboot, you'll get a notification if updates are available.
 
 These modules are auto-detected — just toggle them on:
 
-| Module | Repository |
-|--------|-----------|
-| LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
-| ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) |
-| ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) |
-| Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) |
-| TrickyStore | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) (auto-detected by name) |
-| TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) (auto-detected by name) |
-| Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) |
-| Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) |
-| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) |
-| Yurikey | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) |
-| NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) |
-| Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) |
-| DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
-| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) (CI builds) |
-| Vector (zygisk_vector) | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
-| Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
-| Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) |
-| Wireless ADB | [dracediax/wireless-adb](https://github.com/dracediax/wireless-adb) |
+| Module | Repository | Notes |
+|--------|-----------|-------|
+| Vector / LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) | Formerly LSPosed, now rebranded as Vector |
+| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) | CI builds only — see [limitations](#ci-builds-require-a-github-token) |
+| ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) | |
+| ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) | |
+| Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) | |
+| TrickyStore / TEESimulator | Auto-detected by name | Both use `tricky_store` as module ID |
+| Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) | |
+| Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) | |
+| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | Version mismatch likely — see [limitations](#susfs-version-mismatch) |
+| Yurikey | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) | |
+| NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) | |
+| Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) | |
+| DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) | |
+| Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) | |
+| Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) | |
+| Wireless ADB | [dracediax/wireless-adb](https://github.com/dracediax/wireless-adb) | |
 
 You can manually enter any `owner/repo` for modules not in this list.
 
