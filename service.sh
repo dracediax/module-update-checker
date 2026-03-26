@@ -6,6 +6,9 @@ LOGFILE="$MODDIR/service.log"
 LAST_NOTIF="$MODDIR/last_notif"
 UPDATE_CACHE="/data/adb/muc_update_cache"
 TOKEN_FILE="/data/adb/muc_token"
+SETTINGS_FILE="/data/adb/muc_settings"
+API_STATS_FILE="/data/adb/muc_api_stats"
+LAST_CHECK_FILE="/data/adb/muc_last_check"
 CHECK_INTERVAL=86400  # 24 hours
 POLL_INTERVAL=60      # check trigger file every 60s
 
@@ -34,6 +37,67 @@ done
 if [ "$net_wait" -ge 90 ]; then
     log "network timeout after 90s — proceeding anyway"
 fi
+
+track_api_call() {
+    local now=$(date +%s)
+    local hour_start=0
+    local calls=0
+    if [ -f "$API_STATS_FILE" ]; then
+        local raw=$(cat "$API_STATS_FILE" 2>/dev/null)
+        hour_start=$(echo "$raw" | cut -d'|' -f1)
+        calls=$(echo "$raw" | cut -d'|' -f2)
+    fi
+    local elapsed=$((now - hour_start))
+    if [ "$elapsed" -gt 3600 ]; then
+        calls=0
+        hour_start=$now
+    fi
+    calls=$((calls + 1))
+    echo "${hour_start}|${calls}" > "$API_STATS_FILE"
+}
+
+get_boot_mode() {
+    if [ -f "$SETTINGS_FILE" ]; then
+        local mode=$(grep '^boot_check=' "$SETTINGS_FILE" | cut -d= -f2)
+        [ -n "$mode" ] && echo "$mode" && return
+    fi
+    echo "always"
+}
+
+should_check() {
+    local mode=$(get_boot_mode)
+    log "boot mode: $mode"
+
+    if [ "$mode" = "manual" ]; then
+        log "skipping check — manual mode"
+        return 1
+    fi
+
+    if [ "$mode" = "daily" ]; then
+        if [ -f "$LAST_CHECK_FILE" ]; then
+            local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
+            local now=$(date +%s)
+            local elapsed=$((now - last))
+            if [ "$elapsed" -lt 86400 ]; then
+                log "skipping check — last check was ${elapsed}s ago (daily mode)"
+                return 1
+            fi
+        fi
+    fi
+
+    # For "always" mode, still respect 1-hour cooldown for frequent rebooters
+    if [ -f "$LAST_CHECK_FILE" ]; then
+        local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
+        local now=$(date +%s)
+        local elapsed=$((now - last))
+        if [ "$elapsed" -lt 3600 ]; then
+            log "skipping check — last check was ${elapsed}s ago (1h cooldown)"
+            return 1
+        fi
+    fi
+
+    return 0
+}
 
 curl_auth() {
     if [ -f "$TOKEN_FILE" ]; then
@@ -135,6 +199,7 @@ check_updates() {
 
         local auth_header=$(curl_auth)
         local response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
+        track_api_call
         if [ -z "$response" ]; then
             log "  curl failed for $repo"
             continue
@@ -175,6 +240,9 @@ check_updates() {
     rm -f "$id_list"
     log "check complete: $update_count updates, cache written"
 
+    # Save last check timestamp
+    date +%s > "$LAST_CHECK_FILE"
+
     if [ "$update_count" -gt 0 ]; then
         send_notification "${update_count} module update(s) available" "$update_names"
     else
@@ -183,8 +251,10 @@ check_updates() {
     fi
 }
 
-# Initial auto-check
-check_updates
+# Initial auto-check (respects boot mode and cooldown)
+if should_check; then
+    check_updates
+fi
 
 # Main loop: poll trigger file every 60s, auto-check every 24h
 last_check=$(date +%s)
@@ -196,7 +266,10 @@ while true; do
     now=$(date +%s)
     elapsed=$((now - last_check))
     if [ "$elapsed" -ge "$CHECK_INTERVAL" ]; then
-        check_updates
+        local mode=$(get_boot_mode)
+        if [ "$mode" != "manual" ]; then
+            check_updates
+        fi
         last_check=$now
     fi
 done
