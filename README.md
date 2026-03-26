@@ -17,6 +17,7 @@
 - **Self-updating** — can detect and update itself
 - **Push notifications** — Android notification on boot when updates are found, and on manual check
 - **Background checks** — `service.sh` runs a 24-hour auto-check cycle after boot with network-aware startup
+- **Cached results** — background check results are saved so the WebUI shows updates immediately on open
 - **Notification dedup** — won't re-fire the same notification if the same updates are still pending
 - **Persistent config** — configuration survives module updates (stored at `/data/adb/muc_config.json`)
 - **Dynamic KSU manager detection** — auto-detects the KSU manager package name (supports randomized package names)
@@ -24,11 +25,26 @@
 - **Reboot prompt** — banner and reboot button appear after installing updates
 - **Debug panel** — built-in diagnostics for module discovery, version normalization, API calls, and notification attempts
 
+## Compatibility
+
+| Manager | WebUI | Background Checks | Notifications | Full Support |
+|---------|-------|-------------------|---------------|-------------|
+| [KernelSU Next](https://github.com/rifsxd/KernelSU-Next) | Yes | Yes | Yes | Yes |
+| [KernelSU](https://github.com/tiann/KernelSU) (original) | Yes | Yes | Yes | Yes |
+| [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) (standalone) | Yes | Yes | Yes | Yes |
+| Magisk (with [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI)) | Yes | Yes | Yes | Yes |
+| APatch (with [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI)) | Yes | Yes | Yes | Yes |
+| Magisk (without KsuWebUI) | No | Yes | Yes | Partial |
+
+All managers that support the `ksu.exec()` WebUI API are fully compatible. The module's exec wrapper handles both `ksu` and `ksuwebui` JavaScript interfaces automatically.
+
+**Magisk/APatch users without a WebUI app:** `service.sh` still runs background checks and sends notifications on boot, but you won't have access to the configuration UI or update buttons. Install [KsuWebUI](https://github.com/adivenxnataly/KsuWebUI) for full functionality.
+
 ## Install
 
 1. Download the latest zip from [Releases](https://github.com/dracediax/module-update-checker/releases)
-2. Flash via **KernelSU Manager**
-3. Open the module's **WebUI** from KernelSU Manager
+2. Flash via your module manager
+3. Open the module's **WebUI** from your manager
 4. Toggle on the modules you want to track, fill in any missing `owner/repo` fields
 5. Tap **Save Configuration**, then **Check for Updates Now**
 
@@ -36,7 +52,7 @@
 
 ### WebUI (Manual Check)
 
-The WebUI runs inside KernelSU's WebUI environment and uses `ksu.exec()` to run shell commands on device.
+The WebUI runs inside the manager's WebUI environment and uses `ksu.exec()` to run shell commands on device.
 
 | Step | What happens |
 |------|-------------|
@@ -50,12 +66,13 @@ All commands pipe through `tr` to collapse multi-line output onto a single line 
 
 ### Background Check (service.sh)
 
-After boot, `service.sh` waits for network connectivity (pings `github.com`), then checks all tracked modules against GitHub. If updates are found, it posts a single consolidated notification.
+After boot, `service.sh` waits for network connectivity (pings `github.com`), then checks all tracked modules against GitHub. If updates are found, it posts a single consolidated notification and caches the results.
 
-- Runs an initial check ~30s after boot
+- Runs an initial check after boot + network ready
 - Polls every 60s for WebUI trigger files (immediate notification relay)
 - Re-checks every 24 hours
-- Deduplicates notifications — won't re-fire if the same updates are still pending
+- Caches results to `/data/adb/muc_update_cache` — WebUI loads these instantly on open
+- Deduplicates notifications — won't re-fire if the same updates are pending
 
 ## Known Limitations
 
@@ -72,7 +89,7 @@ Android notifications are posted via `cmd notification post` as the shell user (
 
 ### Notifications are not interactive
 
-Tapping the notification does not open the KSU Manager WebUI. Android's `cmd notification post` does not support content intents from the shell user context. A companion APK would be needed for tap-to-open functionality.
+Tapping the notification does not open the manager's WebUI. Android's `cmd notification post` does not support content intents from the shell user context. A companion APK would be needed for tap-to-open functionality.
 
 ### SUSFS (`susfs4ksu`) version mismatch
 
