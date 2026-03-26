@@ -52,7 +52,7 @@ These modules are auto-detected — just toggle them on:
 | Module | Repository | Notes |
 |--------|-----------|-------|
 | Vector / LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) | Formerly LSPosed, now rebranded as Vector |
-| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) | CI builds only — see [limitations](#ci-builds-require-a-github-token) |
+| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) | CI builds only — no releases, download requires GitHub token |
 | ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) | |
 | ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) | |
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) | |
@@ -60,7 +60,7 @@ These modules are auto-detected — just toggle them on:
 | TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) | Auto-detected by name, shares module ID `tricky_store` |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) | |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) | |
-| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | Version mismatch likely — see [limitations](#susfs-version-mismatch) |
+| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | Reports kernel version, not module version — may show false updates |
 | Yurikey | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) | |
 | NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) | |
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) | |
