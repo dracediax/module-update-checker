@@ -21,6 +21,7 @@
 - **Per-module CI muting** — mute CI notifications per repo (CI info + update button still visible)
 - **Progress bar** — shows per-module progress during update check
 - **Companion app** — bundled 12KB helper for branded notifications
+- **WIP:** tap-to-open notifications, home screen shortcut ([see details](#wip-features))
 
 ---
 
