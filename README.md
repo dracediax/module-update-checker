@@ -64,6 +64,7 @@ These modules are auto-detected — just toggle them on:
 | NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) |
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) |
 | DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) |
+| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) (CI builds) |
 | Vector (zygisk_vector) | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) |
 | Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) |
 | Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) |
@@ -209,6 +210,10 @@ Without a token: **60 requests/hour**. With a token: **5,000/hour**. Each tracke
 ### Update button needs `.zip` asset
 
 The update button only appears if the GitHub release contains a `.zip` file.
+
+### CI builds require a GitHub token
+
+Some modules (like LSPosed Irena) only publish builds via GitHub Actions, not releases. The module checker can detect new CI builds, but **downloading artifacts requires a GitHub token** configured in Settings. Without a token, you'll see "CI build available" but can't download directly.
 
 </details>
 
