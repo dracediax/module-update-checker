@@ -818,52 +818,61 @@ function updateModule(modId, assetUrl, btn) {
   btn.textContent = '\u2913 Downloading...';
   btn.className = 'btn-update downloading';
   var statusEl = document.getElementById('upd-status-' + modId);
-
   var zipPath = '/data/local/tmp/muc_' + modId + '.zip';
 
-  // Download the release zip
-  var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
-  if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
-    btn.textContent = '\u2191 Update';
-    btn.className = 'btn-update';
-    btn.disabled = false;
-    if (statusEl) statusEl.textContent = 'Download failed';
-    debugLog.push({ update: modId, step: 'download', error: dlResult });
-    return;
+  // Find module name for display
+  var modName = modId;
+  for (var mn = 0; mn < modules.length; mn++) {
+    if (modules[mn].id === modId) { modName = modules[mn].name; break; }
   }
 
-  btn.textContent = 'Installing...';
-  btn.className = 'btn-update installing';
-
-  // Try ksud module install first, fallback to manual unzip
-  var installResult = exec("ksud module install " + zipPath + " 2>&1");
-  debugLog.push({ update: modId, step: 'ksud_install', result: installResult });
-
-  if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
-    var fallback = exec("unzip -o " + zipPath + " -d /data/adb/modules/" + modId + "/ 2>&1 && echo INSTALL_OK");
-    debugLog.push({ update: modId, step: 'manual_install', result: fallback });
-
-    if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
-      btn.textContent = 'Failed';
+  // Step 1: Download
+  setTimeout(function() {
+    var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
+    if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
+      btn.textContent = '\u2191 Update';
       btn.className = 'btn-update';
-      if (statusEl) statusEl.textContent = 'Install failed — check debug';
-      exec("rm -f " + zipPath);
+      btn.disabled = false;
+      if (statusEl) statusEl.textContent = 'Download failed';
+      debugLog.push({ update: modId, step: 'download', error: dlResult });
       return;
     }
-  }
 
-  // Cleanup
-  exec("rm -f " + zipPath);
-  btn.textContent = '\u2713 Installed';
-  btn.className = 'btn-update done';
-  if (statusEl) statusEl.textContent = '';
+    btn.textContent = 'Installing...';
+    btn.className = 'btn-update installing';
 
-  // Remove this module from update cache so it doesn't show stale badge after reboot
-  exec("grep -v '^" + modId + "|' /data/adb/muc_update_cache > /data/adb/muc_update_cache.tmp 2>/dev/null; mv /data/adb/muc_update_cache.tmp /data/adb/muc_update_cache 2>/dev/null");
+    // Step 2: Install
+    setTimeout(function() {
+      var installResult = exec("ksud module install " + zipPath + " 2>&1");
+      debugLog.push({ update: modId, step: 'ksud_install', result: installResult });
 
-  // Show reboot banner and button
-  document.getElementById('reboot-banner').style.display = 'block';
-  document.getElementById('reboot-btn').style.display = 'block';
+      if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
+        var fallback = exec("unzip -o " + zipPath + " -d /data/adb/modules/" + modId + "/ 2>&1 && echo INSTALL_OK");
+        debugLog.push({ update: modId, step: 'manual_install', result: fallback });
+
+        if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
+          btn.textContent = 'Failed';
+          btn.className = 'btn-update';
+          if (statusEl) statusEl.textContent = 'Install failed — check debug';
+          exec("rm -f " + zipPath);
+          return;
+        }
+      }
+
+      // Step 3: Cleanup and show result
+      setTimeout(function() {
+        exec("rm -f " + zipPath);
+        btn.textContent = '\u2713 ' + modName + ' — Installed';
+        btn.className = 'btn-update done';
+        if (statusEl) statusEl.textContent = '';
+
+        exec("grep -v '^" + modId + "|' /data/adb/muc_update_cache > /data/adb/muc_update_cache.tmp 2>/dev/null; mv /data/adb/muc_update_cache.tmp /data/adb/muc_update_cache 2>/dev/null");
+
+        document.getElementById('reboot-banner').style.display = 'block';
+        document.getElementById('reboot-btn').style.display = 'block';
+      }, 10);
+    }, 10);
+  }, 10);
 }
 
 function rebootNow() {
@@ -918,8 +927,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v4.1.1.2-it (7455)', 'v4.1.1'],
-    ['v4.1.1.0-0419e67', 'v1.5.2+_R26']
+    ['v4.1.2.2-it (7455)', 'v4.1.2'],
+    ['v4.1.2.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -958,7 +967,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1.2</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
