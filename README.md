@@ -18,7 +18,7 @@
 - **Automatic notifications** — checks on boot and every 24 hours, notifies you when release updates are found
 - **Instant results** — background checks are cached, so the WebUI shows updates immediately
 - **Smart CI handling** — CI builds shown as info when release is current, only notifies for CI-only repos
-- **Per-module CI toggle** — ignore CI builds for repos you don't want nightly updates from
+- **Per-module CI muting** — mute CI notifications for repos you don't want nightly alerts from (CI info still visible)
 
 ---
 
@@ -221,10 +221,11 @@ Some modules (like LSPosed Irena) only publish builds via GitHub Actions, not re
 **How CI checking works:**
 - With a GitHub token: both releases AND CI builds are checked for every module
 - Without a token: CI is only checked as a fallback when no releases exist
-- **Release up to date?** CI info is shown as grey text — informational only, no notification
+- **Release up to date?** CI info shown as grey text below the checkmark — informational only, no notification
 - **CI-only repo?** CI build counts as an update and triggers notifications
+- **Update to CI** button lets you install CI builds directly (same flow as release updates)
 - **Downloading CI artifacts requires a GitHub token** (configure in Settings)
-- Each module has an "Ignore CI builds" checkbox to opt out
+- Each module has a "Mute CI notifications" checkbox (only visible with token) — muting hides notifications but CI info and update button remain visible
 
 </details>
 
