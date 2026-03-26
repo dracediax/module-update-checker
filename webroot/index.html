@@ -795,8 +795,9 @@ function checkNow() {
       var safeTitle = notifTitle.replace(/'/g, "'\\''");
       var safeText = notifText.replace(/'/g, "'\\''");
 
-      // Try companion APK (explicit broadcast with include-stopped flag)
-      var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "' 2>&1");
+      // Try companion APK (explicit broadcast with include-stopped flag + ksu package)
+      var ksuArg = ksuPackage ? " --es ksu_package " + ksuPackage : "";
+      var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "'" + ksuArg + " 2>&1");
 
       // Fallback to shell if companion not installed
       if (!notifResult || notifResult.indexOf('not found') !== -1 || notifResult.indexOf('Error') !== -1) {
@@ -917,8 +918,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v4.1.2-it (7455)', 'v4.1'],
-    ['v4.1.0-0419e67', 'v1.5.2+_R26']
+    ['v4.1.1.2-it (7455)', 'v4.1.1'],
+    ['v4.1.1.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -957,7 +958,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1104,15 +1105,14 @@ function curlAuth() {
 }
 
 function addShortcut() {
-  var result = exec("am broadcast -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.SHORTCUT 2>&1");
-  debugLog.push({ shortcut: result });
-  if (result && result.indexOf('result=-1') !== -1) {
-    document.getElementById('status').textContent = 'Shortcut added — check your home screen';
-  } else if (result && result.indexOf('result=0') !== -1) {
-    document.getElementById('status').textContent = 'Companion app not responding — try reflashing module';
-  } else {
-    document.getElementById('status').textContent = 'Companion app not installed — reflash module';
+  var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
+  if (!pkg) {
+    document.getElementById('status').textContent = 'KSU Manager not detected — open WebUI from KSU Manager first';
+    return;
   }
+  var result = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.SHORTCUT --es ksu_package " + pkg + " 2>&1");
+  debugLog.push({ shortcut: result });
+  document.getElementById('status').textContent = 'Shortcut request sent — check your home screen';
 }
 
 // Scroll focused input into view when keyboard opens
