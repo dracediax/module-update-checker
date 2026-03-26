@@ -17,8 +17,9 @@
 - **One-tap update** — download and install directly from the WebUI
 - **Automatic notifications** — checks on boot and every 24 hours, notifies you when release updates are found
 - **Instant results** — background checks are cached, so the WebUI shows updates immediately
-- **Smart CI handling** — CI builds shown as info when release is current, only notifies for CI-only repos
-- **Per-module CI muting** — mute CI notifications for repos you don't want nightly alerts from (CI info still visible)
+- **Smart CI handling** — CI builds shown as info when release is current, notifies when unmuted
+- **Per-module CI muting** — mute CI notifications for repos you don't want nightly alerts from (CI info + update button still visible)
+- **Home screen shortcut** — add a direct shortcut to Module Update Checker from Settings
 
 ---
 
@@ -115,7 +116,13 @@ All modes still allow manual checks via the WebUI button.
 
 ### GitHub Token (Optional)
 
-A Personal Access Token increases the API rate limit from **60 to 5,000 requests/hour**. The module works fine without one.
+A Personal Access Token unlocks additional features:
+- API rate limit increases from **60 to 5,000 requests/hour**
+- **CI/nightly build detection** — checks GitHub Actions for modules that publish builds via CI
+- **One-tap CI installs** — download and flash nightly builds directly from the WebUI
+- **Per-module "Mute CI notifications"** toggle becomes available
+
+The module works without a token — you just won't see CI builds.
 
 **Setup:**
 1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
