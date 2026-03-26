@@ -66,36 +66,42 @@ get_boot_mode() {
 
 should_check() {
     local mode=$(get_boot_mode)
+    # Migrate old values
+    [ "$mode" = "always" ] && mode="every_boot_cooldown"
+    [ "$mode" = "daily" ] && mode="once_a_day"
     log "boot mode: $mode"
 
     if [ "$mode" = "manual" ]; then
-        log "skipping check — manual mode"
+        log "skipping check — manual only mode"
         return 1
     fi
 
-    if [ "$mode" = "daily" ]; then
+    if [ "$mode" = "once_a_day" ]; then
         if [ -f "$LAST_CHECK_FILE" ]; then
             local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
             local now=$(date +%s)
             local elapsed=$((now - last))
             if [ "$elapsed" -lt 86400 ]; then
-                log "skipping check — last check was ${elapsed}s ago (daily mode)"
+                log "skipping check — last check was ${elapsed}s ago (once a day mode)"
                 return 1
             fi
         fi
     fi
 
-    # For "always" mode, still respect 1-hour cooldown for frequent rebooters
-    if [ -f "$LAST_CHECK_FILE" ]; then
-        local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
-        local now=$(date +%s)
-        local elapsed=$((now - last))
-        if [ "$elapsed" -lt 3600 ]; then
-            log "skipping check — last check was ${elapsed}s ago (1h cooldown)"
-            return 1
+    if [ "$mode" = "every_boot_cooldown" ]; then
+        if [ -f "$LAST_CHECK_FILE" ]; then
+            local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
+            local now=$(date +%s)
+            local elapsed=$((now - last))
+            if [ "$elapsed" -lt 3600 ]; then
+                log "skipping check — last check was ${elapsed}s ago (1h cooldown)"
+                return 1
+            fi
         fi
     fi
 
+    # every_boot = always check, no cooldown
+    log "proceeding with check"
     return 0
 }
 
@@ -266,8 +272,7 @@ while true; do
     now=$(date +%s)
     elapsed=$((now - last_check))
     if [ "$elapsed" -ge "$CHECK_INTERVAL" ]; then
-        local mode=$(get_boot_mode)
-        if [ "$mode" != "manual" ]; then
+        if should_check; then
             check_updates
         fi
         last_check=$now
