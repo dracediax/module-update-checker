@@ -12,18 +12,16 @@
 
 ### Features
 
-| | |
-|---|---|
-| Auto-discovery | Finds all installed modules automatically |
-| GitHub tracking | Checks releases + CI builds for newer versions |
-| One-tap update | Download and install directly from the WebUI |
-| Notifications | Branded alerts on boot and every 24 hours |
-| Instant results | Background checks cached — WebUI loads instantly |
-| CI builds | Detects nightly builds from GitHub Actions (with token) |
-| Smart muting | Per-module CI notification control |
-| Progress bar | Live per-module progress during checks |
+- **Auto-discovery** — finds all installed modules automatically
+- **GitHub tracking** — checks releases + CI builds for newer versions
+- **One-tap update** — download and install directly from the WebUI
+- **Notifications** — branded alerts on boot and every 24 hours
+- **Instant results** — background checks cached, WebUI loads instantly
+- **CI builds** — detects nightly builds from GitHub Actions (with token)
+- **Smart muting** — per-module CI notification control
+- **Progress bar** — live per-module progress during checks
 
-> **WIP:** Tap-to-open notifications and home screen shortcut are [in progress](#-wip-features)
+> **WIP:** Tap-to-open notifications and home screen shortcut — [see details](#wip-features)
 
 ---
 
