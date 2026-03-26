@@ -40,7 +40,7 @@ fi
 
 # Install/update companion APK if not installed or outdated
 if [ -f "$MODDIR/muc-helper.apk" ]; then
-    installed_ver=$(pm dump com.dracediax.muc 2>/dev/null | grep versionCode | head -1 | tr -dc '0-9')
+    installed_ver=$(pm path com.dracediax.muc 2>/dev/null)
     if [ -z "$installed_ver" ]; then
         log "installing companion APK..."
         pm install -r -g "$MODDIR/muc-helper.apk" >/dev/null 2>&1
@@ -50,8 +50,12 @@ if [ -f "$MODDIR/muc-helper.apk" ]; then
             log "companion APK install failed"
         fi
     else
-        log "companion APK already installed (v$installed_ver)"
+        log "companion APK already installed"
     fi
+    # Grant notification permission (required on Android 13+)
+    pm grant com.dracediax.muc android.permission.POST_NOTIFICATIONS >/dev/null 2>&1
+    # Take app out of stopped state
+    am start -n com.dracediax.muc/.DummyActivity >/dev/null 2>&1
 fi
 
 track_api_call() {
@@ -148,12 +152,12 @@ send_notification() {
 
     log "sending notification: $title | $text"
 
-    # Try companion APK first (explicit broadcast — required on Android 14+)
-    local result=$(am broadcast -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
+    # Try companion APK first (explicit broadcast with include-stopped flag)
+    local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
     log "companion app: $result"
 
-    # Fallback to shell if companion not installed or returned result=0
-    if echo "$result" | grep -qi "not found\|error\|result=0"; then
+    # Fallback to shell if companion not installed
+    if echo "$result" | grep -qi "not found\|error"; then
         log "companion not available, falling back to shell"
         result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$text'" 2>&1)
         log "shell notification: $result"
