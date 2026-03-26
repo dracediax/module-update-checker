@@ -15,7 +15,7 @@
 - Discovers all installed modules automatically
 - Checks GitHub for newer versions
 - **One-tap update** — download and install directly from the WebUI
-- **Boot notifications** — get notified after every reboot if updates are available
+- **Automatic notifications** — checks on boot and every 24 hours, notifies you when updates are found
 - **Instant results** — background checks are cached, so the WebUI shows updates immediately
 
 ---
@@ -88,13 +88,17 @@ All commands pipe through `tr` to collapse multi-line output — a workaround fo
 
 ### Background Check (service.sh)
 
-After boot, `service.sh` waits for network connectivity, then checks all tracked modules:
+After boot, `service.sh` waits for network connectivity, then runs continuously:
 
-- Runs initial check after boot + network ready (~30-60s)
-- Caches results to `/data/adb/muc_update_cache` — WebUI loads these instantly
-- Re-checks every 24 hours
-- Polls every 60s for WebUI trigger files
-- Deduplicates notifications within the same boot cycle
+| When | What happens |
+|------|-------------|
+| **~30-60s after boot** | Initial check — fetches latest versions from GitHub |
+| **Every 24 hours** | Automatic re-check — catches updates even if you don't reboot |
+| **Every 60 seconds** | Polls for WebUI trigger files (instant notification relay) |
+| **Manual check** | Triggered from WebUI "Check for Updates Now" button |
+
+- Results are cached to `/data/adb/muc_update_cache` — WebUI loads these instantly on open
+- Notifications are deduplicated within the same boot cycle (won't spam you)
 
 ### Data Files
 
@@ -131,7 +135,7 @@ Versions are normalized and compared as strings, not semantically. `v2.0` vs `v1
 
 ### GitHub rate limits
 
-Unauthenticated requests: **60/hour**. Heavy use may hit this.
+GitHub allows **60 unauthenticated API requests per hour**. Each module you track uses one request per check. With 8 tracked modules, you'd need to check ~7 times in one hour to hit the limit. Normal use (one boot check + occasional manual checks) won't come close.
 
 ### Update button needs `.zip` asset
 
