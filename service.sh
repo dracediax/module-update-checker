@@ -152,8 +152,11 @@ send_notification() {
 
     log "sending notification: $title | $text"
 
-    # Try companion APK first (explicit broadcast with include-stopped flag)
-    local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" 2>&1)
+    # Try companion APK first (explicit broadcast with ksu package for tap-to-open)
+    local ksu_pkg=$(cat /data/adb/muc_ksu_package 2>/dev/null)
+    local ksu_arg=""
+    [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
+    local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" $ksu_arg 2>&1)
     log "companion app: $result"
 
     # Fallback to shell if companion not installed
