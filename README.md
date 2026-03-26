@@ -70,6 +70,32 @@ You can manually enter any `owner/repo` for modules not in this list.
 ---
 
 <details>
+<summary><b>GitHub Token (Optional)</b></summary>
+
+By default, the module uses unauthenticated GitHub API requests, limited to **60 requests/hour**. This is enough for most users.
+
+If you track many modules or check frequently, you can add a **Personal Access Token** to increase the limit to **5,000 requests/hour**.
+
+### Setup
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. Name it (e.g. "module-update-checker")
+4. **Leave all scope checkboxes unchecked** — no permissions needed
+5. Generate and copy the token
+6. In the WebUI, enable "Use GitHub Token", paste it, and Save Configuration
+
+### Security
+- The token is stored in **plaintext** at `/data/adb/muc_token` with `chmod 600`
+- Any app with root access can read it
+- Since no scopes are granted, the token can only read public repos
+- It is tied to your GitHub account — API calls will show as authenticated by you
+- **The module works fully without a token** — this is purely optional
+
+</details>
+
+---
+
+<details>
 <summary><b>How It Works</b></summary>
 
 ### WebUI (Manual Check)
@@ -107,6 +133,7 @@ After boot, `service.sh` waits for network connectivity, then runs continuously:
 | `/data/adb/muc_config.json` | Tracked modules config (persists across updates) |
 | `/data/adb/muc_update_cache` | Cached check results for instant WebUI display |
 | `/data/adb/muc_ksu_package` | Detected KSU manager package name |
+| `/data/adb/muc_token` | GitHub Personal Access Token (optional, chmod 600) |
 
 </details>
 
@@ -135,7 +162,7 @@ Versions are normalized and compared as strings, not semantically. `v2.0` vs `v1
 
 ### GitHub rate limits
 
-GitHub allows **60 unauthenticated API requests per hour**. Each module you track uses one request per check. With 8 tracked modules, you'd need to check ~7 times in one hour to hit the limit. Normal use (one boot check + occasional manual checks) won't come close.
+Without a token: **60 requests/hour**. With a token: **5,000/hour**. Each tracked module uses one request per check. Normal use won't hit the limit either way — see the GitHub Token section above for setup.
 
 ### Update button needs `.zip` asset
 
