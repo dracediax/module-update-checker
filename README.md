@@ -19,7 +19,6 @@
 - **Instant results** — background checks are cached, so the WebUI shows updates immediately
 - **Smart CI handling** — CI builds shown as info when release is current, notifies when unmuted
 - **Per-module CI muting** — mute CI notifications for repos you don't want nightly alerts from (CI info + update button still visible)
-- **Home screen shortcut** — add a direct shortcut to Module Update Checker from Settings
 
 ---
 
