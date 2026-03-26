@@ -285,7 +285,6 @@ var KNOWN_REPOS = {
   'zygisk_nohello': 'MhmRdd/NoHello',
   'shamiko': 'LSPosed/LSPosed.github.io',
   'susfs4ksu': 'sidex15/susfs4ksu-module',
-  // tricky_store: not pre-filled — could be 5ec1cff/TrickyStore OR JingMatrix/TEESimulator
   'playintegrityfix': 'KOWX712/PlayIntegrityFix',
   'TA_utl': 'KOWX712/Tricky-Addon-Update-Target-List',
   'abootloop': 'Kolass2004/anti-bootloop-module',
@@ -295,6 +294,25 @@ var KNOWN_REPOS = {
   'stepless-volume': 'dracediax/stepless-volume',
   'wireless-adb': 'dracediax/wireless-adb'
 };
+
+// Resolve ambiguous module IDs by checking the module name
+// Some modules share the same ID (e.g. tricky_store is used by both TrickyStore and TEESimulator)
+var NAME_REPOS = [
+  { match: /tee\s*simulator/i, repo: 'JingMatrix/TEESimulator' },
+  { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' }
+];
+
+function resolveRepo(id, name, dir) {
+  // Check saved config first (handled elsewhere)
+  // Check name-based rules for ambiguous IDs
+  if (name) {
+    for (var i = 0; i < NAME_REPOS.length; i++) {
+      if (NAME_REPOS[i].match.test(name)) return NAME_REPOS[i].repo;
+    }
+  }
+  // Fall back to ID-based lookup
+  return KNOWN_REPOS[id] || KNOWN_REPOS[dir] || '';
+}
 
 var modules = [];
 var config = [];
@@ -436,7 +454,7 @@ function renderModules() {
       if (config[j].id === mod.id) { saved = config[j]; break; }
     }
     var tracked = !!saved;
-    var repo = saved ? saved.repo : (KNOWN_REPOS[mod.id] || KNOWN_REPOS[mod.dir] || '');
+    var repo = saved ? saved.repo : resolveRepo(mod.id, mod.name, mod.dir);
 
     var card = document.createElement('div');
     card.className = 'module-card' + (tracked ? ' tracked' : '');
@@ -763,8 +781,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.2.2.2-it (7455)', 'v3.2.2'],
-    ['v3.2.2.0-0419e67', 'v1.5.2+_R26']
+    ['v3.3.2-it (7455)', 'v3.3'],
+    ['v3.3.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -803,7 +821,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.2.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
