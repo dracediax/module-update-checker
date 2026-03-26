@@ -630,19 +630,25 @@ function checkNow() {
         var runDateMatch = ciResult.match(/"created_at"\s*:\s*"([^"]*)"/);
         var headShaMatch = ciResult.match(/"head_sha"\s*:\s*"([^"]*)"/);
 
-        if (runDateMatch) {
+        if (runDateMatch && runIdMatch && ghToken) {
+          // Only check CI if we can actually fetch artifacts (needs token)
+          var artResult = exec("curl -sf --connect-timeout 10" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs/" + runIdMatch[1] + "/artifacts' | tr -d '\\n'");
+          trackApiCall();
+          if (artResult) {
+            var artUrlMatch = artResult.match(/"archive_download_url"\s*:\s*"([^"]*)"/);
+            if (artUrlMatch) {
+              // Has downloadable artifact — mark as CI update
+              ciAsset = artUrlMatch[1];
+              var runDate = runDateMatch[1].substring(0, 10);
+              var shortSha = headShaMatch ? headShaMatch[1].substring(0, 7) : '';
+              ciLatest = 'CI-' + runDate + (shortSha ? '-' + shortSha : '');
+            }
+          }
+        } else if (runDateMatch && isCiOnly && !ghToken) {
+          // CI-only repo without token — show info but can't download
           var runDate = runDateMatch[1].substring(0, 10);
           var shortSha = headShaMatch ? headShaMatch[1].substring(0, 7) : '';
           ciLatest = 'CI-' + runDate + (shortSha ? '-' + shortSha : '');
-
-          if (runIdMatch && ghToken) {
-            var artResult = exec("curl -sf --connect-timeout 10" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs/" + runIdMatch[1] + "/artifacts' | tr -d '\\n'");
-            trackApiCall();
-            if (artResult) {
-              var artUrlMatch = artResult.match(/"archive_download_url"\s*:\s*"([^"]*)"/);
-              if (artUrlMatch) ciAsset = artUrlMatch[1];
-            }
-          }
         }
       }
     }
@@ -849,8 +855,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.7.2-it (7455)', 'v3.5.7'],
-    ['v3.5.7.0-0419e67', 'v1.5.2+_R26']
+    ['v3.6.2-it (7455)', 'v3.6'],
+    ['v3.6.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -889,7 +895,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.7</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.6</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
