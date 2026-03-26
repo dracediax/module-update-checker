@@ -58,6 +58,7 @@ These modules are auto-detected — just toggle them on:
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) | |
 | TrickyStore | [5ec1cff/TrickyStore](https://github.com/5ec1cff/TrickyStore) | Auto-detected by name, shares module ID `tricky_store` |
 | TEESimulator | [JingMatrix/TEESimulator](https://github.com/JingMatrix/TEESimulator) | Auto-detected by name, shares module ID `tricky_store` |
+| TEESimulator-RS | [Enginex0/TEESimulator-RS](https://github.com/Enginex0/TEESimulator-RS) | Auto-detected by name, shares module ID `tricky_store` |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) | |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) | |
 | SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | Reports kernel version, not module version — may show false updates ([see limitations](#known-limitations)) |
