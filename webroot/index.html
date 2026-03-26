@@ -603,7 +603,7 @@ function checkNow() {
     var t = tracked[i];
     var badge = document.getElementById('upd-' + t.id);
     var isCiOnly = CI_REPOS[t.repo] || false;
-    var ciIgnored = t.ignoreCi || false;
+    var ciMuted = t.ignoreCi || false;
     var releaseLatest = '';
     var releaseAsset = '';
     var ciLatest = '';
@@ -621,7 +621,7 @@ function checkNow() {
     }
 
     // 2. Check CI builds (if token available AND not ignored for this repo, OR if CI-only repo)
-    if (isCiOnly || (ghToken && !ciIgnored)) {
+    if (isCiOnly || ghToken) {
       var ciResult = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs?status=success&per_page=1' | tr -d '\\n'");
       trackApiCall();
 
@@ -665,7 +665,7 @@ function checkNow() {
     var installedClean = normalizeVersion(mod.version);
     var badgeHtml = '';
     var hasReleaseUpdate = releaseLatest && (normalizeVersion(releaseLatest) !== installedClean);
-    var hasCiUpdate = ciLatest && !ciIgnored;
+    var hasCiUpdate = !!ciLatest;
 
     if (hasReleaseUpdate) {
       // Release update — counts for notification
@@ -676,8 +676,8 @@ function checkNow() {
       if (releaseAsset) {
         badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
-    } else if (hasCiUpdate && isCiOnly) {
-      // CI-only repo with no releases — counts for notification
+    } else if (hasCiUpdate && isCiOnly && !ciMuted) {
+      // CI-only repo with no releases — counts for notification (unless muted)
       updates++;
       updateNames.push(mod.name + ': ' + ciLatest);
       cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
@@ -694,17 +694,15 @@ function checkNow() {
       badgeHtml += '</div>';
     }
 
-    if (hasReleaseUpdate || (hasCiUpdate && isCiOnly)) {
+    if (hasReleaseUpdate || (hasCiUpdate && isCiOnly && !ciMuted)) {
       if (badge) {
         badge.innerHTML = badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
       }
-    } else if (hasCiUpdate) {
-      // Release up to date, CI shown as info only
-      if (badge) {
-        badge.innerHTML = '<span class="up-to-date">\u2713</span>' + badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
-      }
     } else {
-      if (badge) badge.innerHTML = '<span class="up-to-date">\u2713</span>';
+      // Up to date (or CI-only muted) — show checkmark, plus CI info if available
+      if (badge) {
+        badge.innerHTML = '<span class="up-to-date">\u2713</span>' + (hasCiUpdate ? badgeHtml : '') + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
+      }
     }
   }
 
@@ -850,8 +848,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.3.2-it (7455)', 'v3.5.3'],
-    ['v3.5.3.0-0419e67', 'v1.5.2+_R26']
+    ['v3.5.4.2-it (7455)', 'v3.5.4'],
+    ['v3.5.4.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -890,7 +888,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.3</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.4</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1035,6 +1033,15 @@ function curlAuth() {
   if (ghToken) return " -H 'Authorization: token " + ghToken + "'";
   return "";
 }
+
+// Scroll focused input into view when keyboard opens
+document.addEventListener('focusin', function(e) {
+  if (e.target.tagName === 'INPUT') {
+    setTimeout(function() {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  }
+});
 
 detectKsuPackage();
 loadSettings();
