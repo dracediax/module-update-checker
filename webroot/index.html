@@ -298,7 +298,7 @@ var KNOWN_REPOS = {
 // Resolve ambiguous module IDs by checking the module name
 // Some modules share the same ID (e.g. tricky_store is used by both TrickyStore and TEESimulator)
 var NAME_REPOS = [
-  { match: /tee\s*simulator.*rs/i, repo: 'Enginex0/TEESimulator-RS' },
+  { match: /teesimulator.rs/i, repo: 'Enginex0/TEESimulator-RS' },
   { match: /tee\s*simulator/i, repo: 'JingMatrix/TEESimulator' },
   { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' },
   { match: /irena/i, repo: 're-zero001/LSPosed-Irena' }
@@ -841,8 +841,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.2-it (7455)', 'v3.5'],
-    ['v3.5.0-0419e67', 'v1.5.2+_R26']
+    ['v3.5.1.2-it (7455)', 'v3.5.1'],
+    ['v3.5.1.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -881,7 +881,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
