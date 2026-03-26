@@ -687,7 +687,7 @@ function checkNow() {
     if (hasCiUpdate) {
       badgeHtml += '<div style="margin-top:6px"><span style="color:#888;font-size:11px">CI: ' + escapeHtml(ciLatest) + '</span>';
       if (ciAsset && ghToken) {
-        badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">Download</button>';
+        badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken && isCiOnly) {
         badgeHtml += ' <span style="color:#d29922;font-size:11px">token required</span>';
       }
@@ -848,8 +848,8 @@ function showDebug() {
   var testCases = [
     ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
     ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v3.5.4.2-it (7455)', 'v3.5.4'],
-    ['v3.5.4.0-0419e67', 'v1.5.2+_R26']
+    ['v3.5.5.2-it (7455)', 'v3.5.5'],
+    ['v3.5.5.0-0419e67', 'v1.5.2+_R26']
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
     var a = testCases[tc][0], b = testCases[tc][1];
@@ -888,7 +888,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.4</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v3.5.5</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
