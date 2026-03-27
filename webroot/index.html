@@ -824,10 +824,12 @@ function checkNow() {
       // Try companion APK (explicit broadcast with include-stopped flag + ksu package)
       var ksuArg = ksuPackage ? " --es ksu_package " + ksuPackage : "";
       var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "'" + ksuArg + " 2>&1");
+      debugLog.push({ notif: 'companion APK', result: notifResult || '(empty)' });
 
       // Fallback to shell if companion not installed
       if (!notifResult || notifResult.indexOf('not found') !== -1 || notifResult.indexOf('Error') !== -1) {
-        exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
+        var shellResult = exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
+        debugLog.push({ notif: 'shell fallback', result: shellResult || '(empty)' });
       }
     }
 
@@ -1176,7 +1178,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
