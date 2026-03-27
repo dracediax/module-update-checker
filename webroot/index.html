@@ -1408,7 +1408,69 @@ function showDebug() {
   if (!s7) s7 = '<span class="dbg-dim">No updates installed yet</span>\n';
   html += dbgSection('UPDATE HISTORY', s7);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.4</div>' + html + '</div>';
+  // Bug report button
+  var reportHtml = '<div style="margin-top:16px;text-align:center">' +
+    '<button class="btn" style="background:#333;font-size:13px;padding:10px" onclick="copyBugReport()">Copy Bug Report for GitHub</button>' +
+    '<div id="copy-feedback" style="font-size:11px;color:#888;margin-top:4px;min-height:16px"></div></div>';
+
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.4</div>' + html + reportHtml + '</div>';
+}
+
+function copyBugReport() {
+  var report = '### MUC Bug Report\n\n';
+  report += '**Version:** v5.4 (versionCode 107)\n';
+  report += '**Device:** ' + exec("getprop ro.product.model | tr -d '\\n'") + '\n';
+  report += '**Android:** ' + exec("getprop ro.build.version.release | tr -d '\\n'") + '\n';
+  report += '**Kernel:** ' + exec("uname -r | tr -d '\\n'") + '\n';
+  report += '**Root:** ' + exec("which ksud >/dev/null 2>&1 && echo KernelSU || (which magisk >/dev/null 2>&1 && echo Magisk || echo Unknown) | tr -d '\\n'") + '\n\n';
+
+  report += '**Modules:** ' + modules.length + ' installed, ';
+  var tracked = 0;
+  var toggles = document.querySelectorAll('.toggle input:checked');
+  for (var i = 0; i < toggles.length; i++) {
+    if (toggles[i].getAttribute('data-id')) tracked++;
+  }
+  report += tracked + ' tracked\n';
+
+  var companion = exec("pm path com.dracediax.muc 2>/dev/null | tr -d '\\n'");
+  report += '**Companion app:** ' + (companion ? 'installed' : 'not installed') + '\n';
+  report += '**Token:** ' + (ghToken ? 'set (redacted)' : 'not set') + '\n\n';
+
+  report += '**Service log (last 15 lines):**\n```\n';
+  var slog = exec("tail -15 /data/adb/modules/module-update-checker/service.log 2>/dev/null | tr '\\n' '|'");
+  if (slog) {
+    // Sanitize: redact token values, KSU package names, user paths
+    var logText = slog.split('|').join('\n');
+    logText = logText.replace(/ghp_[A-Za-z0-9_]+/g, 'ghp_[REDACTED]');
+    logText = logText.replace(/token [A-Za-z0-9_]+/g, 'token [REDACTED]');
+    logText = logText.replace(/[a-z]{5,}\.[a-z]{5,}\.[a-z]{5,}/g, '[ksu_pkg]');
+    report += logText;
+  } else {
+    report += '(not available)\n';
+  }
+  report += '```\n\n';
+
+  report += '**Describe the issue:**\n\n';
+
+  // Copy to clipboard via a textarea
+  var ta = document.createElement('textarea');
+  ta.value = report;
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+
+  var fb = document.getElementById('copy-feedback');
+  if (ok) {
+    fb.textContent = 'Copied! Paste into a new GitHub issue.';
+    fb.style.color = '#4a4';
+  } else {
+    fb.textContent = 'Copy failed — manually select and copy from debug output above';
+    fb.style.color = '#d29922';
+  }
 }
 
 function detectKsuPackage() {
