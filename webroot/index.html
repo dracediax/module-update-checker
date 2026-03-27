@@ -1779,7 +1779,12 @@ function loadRollbackButtons() {
     var statusEl = document.getElementById('upd-status-' + modId);
     if (statusEl && !statusEl.innerHTML) {
       var backupVer = exec("grep '^version=' /data/adb/muc/backups/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
-      if (backupVer) {
+      // Only show rollback if backup version differs from installed
+      var installedVer = '';
+      for (var m = 0; m < modules.length; m++) {
+        if (modules[m].id === modId) { installedVer = modules[m].version; break; }
+      }
+      if (backupVer && normalizeVersion(backupVer) !== normalizeVersion(installedVer)) {
         statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback to ' + escapeHtml(backupVer) + '</button>';
       }
     }
