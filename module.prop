@@ -1,7 +1,7 @@
 id=module-update-checker
 name=Module Update Checker
-version=v5.0.1
-versionCode=90
+version=v5.0.2
+versionCode=91
 updateJson=https://raw.githubusercontent.com/dracediax/module-update-checker/main/update.json
 author=dracediax
 description=Check for KSU module updates from GitHub
