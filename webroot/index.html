@@ -845,18 +845,35 @@ function checkNow() {
     var ciLatest = '';
     var ciAsset = '';
 
-    // 1. Check releases (use /releases?per_page=1 for pre-releases, /releases/latest for stable only)
-    var releaseUrl = t.preRelease
-      ? "https://api.github.com/repos/" + t.repo + "/releases?per_page=1"
-      : "https://api.github.com/repos/" + t.repo + "/releases/latest";
-    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " '" + releaseUrl + "' | tr -d '\\n'");
-    trackApiCall();
-
-    if (result && result.length > 5) {
-      var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
-      if (tagMatch) releaseLatest = tagMatch[1];
-      var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
-      if (assetMatch) releaseAsset = assetMatch[1];
+    // 1. Check releases
+    if (t.preRelease) {
+      // Fetch multiple releases and find the newest version (GitHub doesn't sort pre-releases first)
+      var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases?per_page=5' | tr -d '\\n'");
+      trackApiCall();
+      if (result && result.length > 5) {
+        var allTags = result.match(/"tag_name"\s*:\s*"([^"]*)"/g) || [];
+        var allAssets = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/g) || [];
+        // Find newest version
+        for (var ti = 0; ti < allTags.length; ti++) {
+          var tag = allTags[ti].replace(/"tag_name"\s*:\s*"/, '').replace(/"$/, '');
+          if (!releaseLatest || compareVersions(tag, releaseLatest) > 0) {
+            releaseLatest = tag;
+            // Find corresponding asset (same block in JSON)
+            if (allAssets[ti]) {
+              releaseAsset = allAssets[ti].replace(/"browser_download_url"\s*:\s*"/, '').replace(/"$/, '');
+            }
+          }
+        }
+      }
+    } else {
+      var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases/latest' | tr -d '\\n'");
+      trackApiCall();
+      if (result && result.length > 5) {
+        var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
+        if (tagMatch) releaseLatest = tagMatch[1];
+        var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
+        if (assetMatch) releaseAsset = assetMatch[1];
+      }
     }
 
     // 2. Check CI builds (skip if muted, unless CI-only repo)
