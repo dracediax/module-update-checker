@@ -201,6 +201,10 @@
   Reboot to apply updates
   <button class="dismiss" onclick="document.getElementById('reboot-banner').style.display='none'">&times;</button>
 </div>
+<div class="reboot-banner" id="settings-banner" style="display:none;background:#2a3a2a;border-bottom-color:#4a6a4a">
+  Settings changed — press Save Configuration to apply
+  <button class="dismiss" onclick="document.getElementById('settings-banner').style.display='none'">&times;</button>
+</div>
 
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
 <img src="data:image/png;base64,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" style="width:40px;height:40px;border-radius:50%" alt="">
@@ -222,7 +226,7 @@
     <h3>Update Check</h3>
     <div class="setting-row">
       <label for="boot-mode">After reboot:</label>
-      <select id="boot-mode">
+      <select id="boot-mode" onchange="onSettingsChanged()">
         <option value="every_boot">Every boot</option>
         <option value="every_boot_cooldown">Every boot (skip if checked &lt;1h ago)</option>
         <option value="once_a_day">Once a day</option>
@@ -240,7 +244,7 @@
   <div class="setting-group">
     <h3>GitHub Token</h3>
     <div class="setting-row">
-      <input type="checkbox" id="token-toggle" onchange="toggleTokenBody()">
+      <input type="checkbox" id="token-toggle" onchange="toggleTokenBody();onSettingsChanged()">
       <label for="token-toggle">Use Personal Access Token</label>
     </div>
     <div id="token-body" style="display:none">
@@ -292,13 +296,18 @@
 
   <div class="setting-group">
     <h3>Standalone App</h3>
-    <div class="setting-row">
-      <input type="checkbox" id="companion-toggle" checked>
-      <label for="companion-toggle">Enable companion app</label>
+    <div style="display:flex;align-items:center;gap:10px">
+      <label class="toggle">
+        <input type="checkbox" id="companion-toggle" checked onchange="onCompanionToggle()">
+        <span class="slider"></span>
+      </label>
+      <span id="companion-status" style="font-size:13px;font-weight:500;color:#4a4">Enabled</span>
+    </div>
+    <div id="companion-warn" style="display:none;font-size:12px;color:#d29922;background:#2a2a1a;border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.5">
+      Companion app will be uninstalled on next reboot. Notifications fall back to shell.
     </div>
     <div class="setting-info">
-      Provides notification tap, home screen shortcut, and direct access to MUC without KSU Manager.<br>
-      Disabling will uninstall the companion app on next reboot. Notifications fall back to shell.
+      Provides notification tap, home screen shortcut, and direct access to MUC without KSU Manager.
     </div>
     <div id="companion-actions" style="margin-top:8px">
       <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
@@ -309,7 +318,7 @@
   <div class="setting-group">
     <h3>Advanced</h3>
     <div class="setting-row">
-      <input type="checkbox" id="debug-toggle">
+      <input type="checkbox" id="debug-toggle" onchange="onSettingsChanged()">
       <label for="debug-toggle">Enable debug menu</label>
     </div>
   </div>
@@ -665,12 +674,14 @@ function saveConfig() {
   var companionOn = document.getElementById('companion-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  document.getElementById('companion-actions').style.display = companionOn ? 'block' : 'none';
   exec("echo 'boot_check=" + bootMode + "\\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\\ncompanion_app=" + (companionOn ? 'on' : 'off') + "' > " + SETTINGS_PATH);
 
-  var statusMsg = 'Configuration saved \u2713';
-  if (!companionOn) statusMsg += ' — companion app will be removed on next reboot';
-  document.getElementById('status').textContent = statusMsg;
+  document.getElementById('settings-banner').style.display = 'none';
+  document.getElementById('status').textContent = 'Configuration saved \u2713';
+  if (!companionOn) {
+    document.getElementById('reboot-banner').style.display = 'block';
+    document.getElementById('reboot-btn').style.display = 'block';
+  }
 }
 
 function checkNow() {
@@ -1357,14 +1368,24 @@ function toggleSettings() {
   if (panel.className.indexOf('open') !== -1) updateApiStats();
 }
 
+function onCompanionToggle() {
+  var enabled = document.getElementById('companion-toggle').checked;
+  var status = document.getElementById('companion-status');
+  status.textContent = enabled ? 'Enabled' : 'Disabled';
+  status.style.color = enabled ? '#4a4' : '#a55';
+  document.getElementById('companion-warn').style.display = enabled ? 'none' : 'block';
+  document.getElementById('companion-actions').style.display = enabled ? 'block' : 'none';
+  onSettingsChanged();
+}
+
+function onSettingsChanged() {
+  document.getElementById('settings-banner').style.display = 'block';
+}
+
 function toggleTokenBody() {
   var cb = document.getElementById('token-toggle');
   document.getElementById('token-body').style.display = cb.checked ? 'block' : 'none';
-  if (!cb.checked) {
-    document.getElementById('token-input').value = '';
-    exec("rm -f " + TOKEN_PATH);
-    ghToken = '';
-  }
+  // Don't delete token yet — only on Save. User can re-enable without losing it.
 }
 
 function loadSettings() {
@@ -1394,6 +1415,9 @@ function loadSettings() {
     var companionMatch = settings.match(/companion_app=(\w+)/);
     if (companionMatch && companionMatch[1] === 'off') {
       document.getElementById('companion-toggle').checked = false;
+      document.getElementById('companion-status').textContent = 'Disabled';
+      document.getElementById('companion-status').style.color = '#a55';
+      document.getElementById('companion-warn').style.display = 'block';
       document.getElementById('companion-actions').style.display = 'none';
     }
   }
