@@ -58,17 +58,16 @@ A companion app is bundled with the module and auto-installed on boot. It provid
 
 - **Direct access** — opens the full MUC WebUI without going through KSU Manager
 - **Notification tap** — tap any update notification to jump straight into MUC
-- **Home screen shortcut** — pin MUC to your home screen
-- **Branded notifications** — shows "Module Update Checker" with custom icon
-- **No root grant needed** — communicates with the module's root daemon via IPC, no Superuser prompt required
+- **Home screen** — long-press the app in your drawer to add to home screen
+- **Branded notifications** — "Module Update Checker" with custom icon
+- **No root grant needed** — communicates with the module's root daemon via IPC
 
 You can **disable the companion app** in Settings > Standalone App. When disabled:
-- The app is uninstalled on next reboot
+- App is uninstalled on next reboot
 - Notifications fall back to shell ("Shell" sender, not tappable)
-- No app in the drawer or home screen shortcut
-- The module continues to work fully via KSU Manager's WebUI
+- Module continues to work fully via KSU Manager's WebUI
 
-Re-enable the toggle and reboot to reinstall.
+Re-enable and reboot to reinstall.
 
 ---
 
