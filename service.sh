@@ -330,38 +330,48 @@ fi
 
 # Exec daemon — handles root commands from companion app
 # App writes command to CMD_DIR/<id>, daemon executes and writes result to RES_DIR/<id>
-# Wait for companion app data dir to exist (created after pm install)
+# Wait for companion app data dir
+APP_DIR="/data/data/com.dracediax.muc"
 for i in $(seq 1 30); do
-    [ -d "/data/data/com.dracediax.muc" ] && break
+    [ -d "$APP_DIR" ] && break
     sleep 1
 done
-CMD_DIR="/data/data/com.dracediax.muc/muc_cmd"
-RES_DIR="/data/data/com.dracediax.muc/muc_res"
-mkdir -p "$CMD_DIR" "$RES_DIR"
-chmod 777 "$CMD_DIR" "$RES_DIR"
-log "exec IPC dirs ready: $CMD_DIR"
 
-exec_daemon() {
-    log "exec daemon started"
+if [ -d "$APP_DIR" ]; then
+    # Copy webroot to app-accessible location (app can't read /data/adb/)
+    cp "$MODDIR/webroot/index.html" "$APP_DIR/webui.html" 2>/dev/null
+    chmod 644 "$APP_DIR/webui.html"
+    chown $(stat -c %u "$APP_DIR") "$APP_DIR/webui.html" 2>/dev/null
+    log "webroot copied to $APP_DIR/webui.html"
+
+    # Set up IPC dirs for exec daemon
+    CMD_DIR="$APP_DIR/muc_cmd"
+    RES_DIR="$APP_DIR/muc_res"
+    mkdir -p "$CMD_DIR" "$RES_DIR"
+    chmod 777 "$CMD_DIR" "$RES_DIR" 2>/dev/null
+    # Fix SELinux context to match app's context
+    chcon -R $(ls -Zd "$APP_DIR" | cut -d' ' -f1) "$CMD_DIR" "$RES_DIR" 2>/dev/null
+    log "IPC dirs ready"
+
+    # Exec daemon — reads commands from app, executes as root, writes results
     while true; do
         for cmd_file in "$CMD_DIR"/*; do
             [ -f "$cmd_file" ] || continue
-            local id=$(basename "$cmd_file")
-            local cmd=$(cat "$cmd_file" 2>/dev/null)
+            id=$(basename "$cmd_file")
+            cmd=$(cat "$cmd_file" 2>/dev/null)
             rm -f "$cmd_file"
             if [ -n "$cmd" ]; then
-                local result=$(eval "$cmd" 2>&1)
+                result=$(sh -c "$cmd" 2>&1)
                 echo "$result" > "$RES_DIR/$id"
-                chmod 666 "$RES_DIR/$id"
+                chmod 666 "$RES_DIR/$id" 2>/dev/null
             fi
         done
-        sleep 0.05
-    done
-}
-
-# Start exec daemon in background
-exec_daemon &
-log "exec daemon PID: $!"
+        sleep 0.1
+    done &
+    log "exec daemon PID: $!"
+else
+    log "companion app data dir not found"
+fi
 
 # Main loop: poll trigger file every 60s, auto-check every 24h
 last_check=$(date +%s)
