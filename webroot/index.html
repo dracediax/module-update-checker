@@ -755,7 +755,7 @@ function loadCachedUpdates() {
     if (repo) {
       badge.innerHTML += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(repo) + '\', this)">View changelog</button>';
     }
-    badge.innerHTML += '<span class="update-status" id="upd-status-' + escapeAttr(modId) + '"></span>';
+    // upd-status already in card
     count++;
   }
 
@@ -960,11 +960,11 @@ function checkNow() {
     if (hasReleaseUpdate || (hasCiUpdate && !ciMuted)) {
       // Has update (release or unmuted CI)
       if (badge) {
-        badge.innerHTML = badgeHtml + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
+        badge.innerHTML = badgeHtml;
       }
     } else {
       if (badge) {
-        badge.innerHTML = '<span class="up-to-date">\u2713</span>' + (hasCiUpdate ? badgeHtml : '') + '<span class="update-status" id="upd-status-' + escapeAttr(t.id) + '"></span>';
+        badge.innerHTML = '<span class="up-to-date">\u2713</span>' + (hasCiUpdate ? badgeHtml : '');
       }
     }
 
