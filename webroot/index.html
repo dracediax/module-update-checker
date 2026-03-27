@@ -394,6 +394,7 @@ var debugLog = [];
 var ksuPackage = '';
 var ghToken = '';
 var bootMode = 'every_boot_cooldown';
+var companionWasOn = true; // tracks boot state of companion app
 var apiCalls = 0;
 var apiHourStart = 0;
 var KSU_PKG_PATH = '/data/adb/muc/ksu_package';
@@ -681,12 +682,17 @@ function saveConfig() {
 
   document.getElementById('settings-banner').style.display = 'none';
   document.getElementById('status').textContent = 'Configuration saved \u2713';
-  if (!companionOn) {
-    // Delay reboot banner so user sees "saved" first, then reboot prompt
+
+  // Only show reboot if companion state actually changed from boot state
+  var companionChanged = (companionOn !== companionWasOn);
+  if (companionChanged) {
     setTimeout(function() {
       document.getElementById('reboot-banner').style.display = 'block';
       document.getElementById('reboot-btn').style.display = 'block';
     }, 500);
+  } else {
+    document.getElementById('reboot-banner').style.display = 'none';
+    document.getElementById('reboot-btn').style.display = 'none';
   }
 }
 
@@ -1420,6 +1426,7 @@ function loadSettings() {
     }
     var companionMatch = settings.match(/companion_app=(\w+)/);
     if (companionMatch && companionMatch[1] === 'off') {
+      companionWasOn = false;
       document.getElementById('companion-toggle').checked = false;
       document.getElementById('companion-status').textContent = 'Disabled';
       document.getElementById('companion-status').style.color = '#a55';
