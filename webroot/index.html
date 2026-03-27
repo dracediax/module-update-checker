@@ -1533,7 +1533,6 @@ function onCompanionToggle() {
   // Show reboot hint if re-enabling (app needs reinstall)
   var needsReboot = (enabled !== companionWasOn);
   document.getElementById('companion-reboot-hint').style.display = (enabled && !companionWasOn) ? 'block' : 'none';
-  onSettingsChanged();
 }
 
 // onSettingsChanged removed — auto-save handles everything
