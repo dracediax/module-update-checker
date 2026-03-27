@@ -1586,10 +1586,25 @@ function onCompanionToggle() {
   var status = document.getElementById('companion-status');
   status.textContent = enabled ? 'Enabled' : 'Disabled';
   status.style.color = enabled ? '#3a3' : '#a55';
-  document.getElementById('companion-warn').style.display = enabled ? 'none' : 'block';
-  // Show reboot hint if re-enabling (app needs reinstall)
-  var needsReboot = (enabled !== companionWasOn);
   document.getElementById('companion-reboot-hint').style.display = (enabled && !companionWasOn) ? 'block' : 'none';
+
+  var warn = document.getElementById('companion-warn');
+  if (!enabled) {
+    // Check if a native WebUI manager exists (KSU Manager or KsuWebUI)
+    var hasWebUI = false;
+    if (ksuPackage) hasWebUI = true; // KSU Manager detected
+    if (!hasWebUI) {
+      var webui = exec("pm list packages 2>/dev/null | grep -i ksuwebui | head -1").trim();
+      if (webui) hasWebUI = true;
+    }
+    if (!hasWebUI) {
+      warn.innerHTML = '<b>Warning:</b> No WebUI manager detected. The companion app is your only way to access this interface. Disabling it means you lose the UI — you will only receive shell notifications.';
+    } else {
+      warn.innerHTML = 'Companion app will be uninstalled on next reboot. You can still access MUC through your WebUI manager. Notifications fall back to shell.';
+    }
+  }
+  warn.style.display = enabled ? 'none' : 'block';
+  autoSaveSettings();
 }
 
 // onSettingsChanged removed — auto-save handles everything
