@@ -260,7 +260,7 @@
         5. Generate and paste it here
       </div>
       <div class="setting-warn">
-        Token is stored in plaintext at /data/adb/muc_token (chmod 600). Any root app can read it. No scopes = can only read public repos, but it's tied to your GitHub account.
+        Token is stored in plaintext at /data/adb/muc/token (chmod 600). Any root app can read it. No scopes = can only read public repos, but it's tied to your GitHub account.
       </div>
     </div>
   </div>
@@ -291,10 +291,19 @@
   </div>
 
   <div class="setting-group">
-    <h3>Shortcut</h3>
-    <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
-    <div id="shortcut-feedback" style="font-size:12px;margin-top:6px;min-height:16px"></div>
-    <div class="setting-info">Creates a home screen shortcut to open Module Update Checker directly.</div>
+    <h3>Standalone App</h3>
+    <div class="setting-row">
+      <input type="checkbox" id="companion-toggle" checked>
+      <label for="companion-toggle">Enable companion app</label>
+    </div>
+    <div class="setting-info">
+      Provides notification tap, home screen shortcut, and direct access to MUC without KSU Manager.<br>
+      Disabling will uninstall the companion app on next reboot. Notifications fall back to shell.
+    </div>
+    <div id="companion-actions" style="margin-top:8px">
+      <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
+      <div id="shortcut-feedback" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+    </div>
   </div>
 
   <div class="setting-group">
@@ -322,7 +331,7 @@
 
 <script>
 var MODDIR = '/data/adb/modules';
-var CONFIG_PATH = '/data/adb/muc_config.json';
+var CONFIG_PATH = '/data/adb/muc/config.json';
 
 var KNOWN_REPOS = {
   'Yurikey': 'Yurii0307/yurikey',
@@ -375,10 +384,10 @@ var ghToken = '';
 var bootMode = 'every_boot_cooldown';
 var apiCalls = 0;
 var apiHourStart = 0;
-var KSU_PKG_PATH = '/data/adb/muc_ksu_package';
-var TOKEN_PATH = '/data/adb/muc_token';
-var SETTINGS_PATH = '/data/adb/muc_settings';
-var API_STATS_PATH = '/data/adb/muc_api_stats';
+var KSU_PKG_PATH = '/data/adb/muc/ksu_package';
+var TOKEN_PATH = '/data/adb/muc/token';
+var SETTINGS_PATH = '/data/adb/muc/settings';
+var API_STATS_PATH = '/data/adb/muc/api_stats';
 
 function exec(cmd) {
   var apis = [
@@ -578,7 +587,7 @@ function renderModuleCard(mod, list) {
 
 function loadCachedUpdates() {
   // Read cache written by service.sh: each line is mod_id|latest|asset_url
-  var cacheRaw = exec("cat /data/adb/muc_update_cache 2>/dev/null | tr '\\n' ','");
+  var cacheRaw = exec("cat /data/adb/muc/update_cache 2>/dev/null | tr '\\n' ','");
   if (!cacheRaw || cacheRaw.trim().length < 3) return;
 
   var entries = cacheRaw.trim().split(',');
@@ -653,11 +662,15 @@ function saveConfig() {
   // Save settings
   bootMode = document.getElementById('boot-mode').value;
   var debugOn = document.getElementById('debug-toggle').checked;
+  var companionOn = document.getElementById('companion-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  exec("echo 'boot_check=" + bootMode + "\\ndebug_menu=" + (debugOn ? 'on' : 'off') + "' > " + SETTINGS_PATH);
+  document.getElementById('companion-actions').style.display = companionOn ? 'block' : 'none';
+  exec("echo 'boot_check=" + bootMode + "\\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\\ncompanion_app=" + (companionOn ? 'on' : 'off') + "' > " + SETTINGS_PATH);
 
-  document.getElementById('status').textContent = 'Configuration saved \u2713';
+  var statusMsg = 'Configuration saved \u2713';
+  if (!companionOn) statusMsg += ' — companion app will be removed on next reboot';
+  document.getElementById('status').textContent = statusMsg;
 }
 
 function checkNow() {
@@ -835,9 +848,9 @@ function checkNow() {
   function finishCheck() {
     // Write update cache
     if (cacheLines.length > 0) {
-      exec("echo '" + cacheLines.join('\n').replace(/'/g, "'\\''") + "' > /data/adb/muc_update_cache");
+      exec("echo '" + cacheLines.join('\n').replace(/'/g, "'\\''") + "' > /data/adb/muc/update_cache");
     } else {
-      exec("rm -f /data/adb/muc_update_cache");
+      exec("rm -f /data/adb/muc/update_cache");
     }
 
     // Hide progress bar
@@ -878,7 +891,7 @@ function checkNow() {
     }
 
     var now = Math.floor(Date.now() / 1000);
-    exec("echo '" + now + "' > /data/adb/muc_last_check");
+    exec("echo '" + now + "' > /data/adb/muc/last_check");
     updateApiStats();
     showUpdateAllButton();
   }
@@ -957,7 +970,7 @@ function updateModule(modId, assetUrl, btn) {
         btn.className = 'btn-update done';
         if (statusEl) statusEl.textContent = '';
 
-        exec("grep -v '^" + modId + "|' /data/adb/muc_update_cache > /data/adb/muc_update_cache.tmp 2>/dev/null; mv /data/adb/muc_update_cache.tmp /data/adb/muc_update_cache 2>/dev/null");
+        exec("grep -v '^" + modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
 
         document.getElementById('reboot-banner').style.display = 'block';
         document.getElementById('reboot-btn').style.display = 'block';
@@ -1089,7 +1102,7 @@ function updateAll() {
         item.btn.textContent = '\u2713 ' + item.modName + ' — Installed';
         item.btn.className = 'btn-update done';
 
-        exec("grep -v '^" + item.modId + "|' /data/adb/muc_update_cache > /data/adb/muc_update_cache.tmp 2>/dev/null; mv /data/adb/muc_update_cache.tmp /data/adb/muc_update_cache 2>/dev/null");
+        exec("grep -v '^" + item.modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
 
         completed++;
         idx++;
@@ -1257,7 +1270,7 @@ function showDebug() {
 
   // Section 5: KSU Intent & Shortcut Debug (single exec call to avoid lag)
   var s5 = '';
-  var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
+  var pkg = ksuPackage || exec("cat /data/adb/muc/ksu_package 2>/dev/null").trim();
   s5 += dbgLine('ksu package', pkg || '(not detected)', pkg ? 'dbg-ok' : 'dbg-err');
   if (pkg) {
     // Single combined command to avoid multiple slow exec calls
@@ -1378,6 +1391,11 @@ function loadSettings() {
       document.getElementById('debug-toggle').checked = true;
       document.getElementById('debug-btn').style.display = 'block';
     }
+    var companionMatch = settings.match(/companion_app=(\w+)/);
+    if (companionMatch && companionMatch[1] === 'off') {
+      document.getElementById('companion-toggle').checked = false;
+      document.getElementById('companion-actions').style.display = 'none';
+    }
   }
   document.getElementById('boot-mode').value = bootMode;
 
@@ -1435,7 +1453,7 @@ function updateApiStats() {
   document.getElementById('api-reset').textContent = mins + 'm ' + secs + 's';
 
   // Last check time
-  var lastRaw = exec("cat /data/adb/muc_last_check 2>/dev/null").trim();
+  var lastRaw = exec("cat /data/adb/muc/last_check 2>/dev/null").trim();
   if (lastRaw) {
     var lastTs = parseInt(lastRaw);
     var ago = now - lastTs;
@@ -1453,7 +1471,7 @@ function curlAuth() {
 }
 
 function addShortcut() {
-  var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
+  var pkg = ksuPackage || exec("cat /data/adb/muc/ksu_package 2>/dev/null").trim();
   var feedbackEl = document.getElementById('shortcut-feedback');
   if (!feedbackEl) return;
 
