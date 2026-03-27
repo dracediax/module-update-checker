@@ -289,6 +289,7 @@
   <div class="setting-group">
     <h3>Shortcut</h3>
     <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
+    <div id="shortcut-feedback" style="font-size:12px;margin-top:6px;min-height:16px"></div>
     <div class="setting-info">Creates a home screen shortcut to open Module Update Checker directly.</div>
   </div>
 
@@ -1175,7 +1176,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.4</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1323,13 +1324,38 @@ function curlAuth() {
 
 function addShortcut() {
   var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
+  var feedbackEl = document.getElementById('shortcut-feedback');
+  if (!feedbackEl) return;
+
   if (!pkg) {
-    document.getElementById('status').textContent = 'KSU Manager not detected — open WebUI from KSU Manager first';
+    feedbackEl.textContent = 'KSU Manager not detected';
+    feedbackEl.style.color = '#d29922';
     return;
   }
+
+  // Clear old result
+  exec("rm -f /data/local/tmp/muc_shortcut_result");
+
   var result = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.SHORTCUT --es ksu_package " + pkg + " 2>&1");
   debugLog.push({ shortcut: result });
-  document.getElementById('status').textContent = 'Shortcut request sent — check your home screen';
+
+  // Read result from companion APK
+  setTimeout(function() {
+    var res = exec("cat /data/local/tmp/muc_shortcut_result 2>/dev/null").trim();
+    if (res.indexOf('ok|') === 0) {
+      feedbackEl.textContent = 'Shortcut added (' + res.split('|')[1] + ')';
+      feedbackEl.style.color = '#4a4';
+    } else if (res.indexOf('fail|') === 0) {
+      feedbackEl.textContent = 'Failed: ' + res.split('|')[1];
+      feedbackEl.style.color = '#f85149';
+    } else if (!result || result.indexOf('not found') !== -1 || result.indexOf('Error') !== -1) {
+      feedbackEl.textContent = 'Companion app not installed — reflash module and reboot';
+      feedbackEl.style.color = '#d29922';
+    } else {
+      feedbackEl.textContent = 'Shortcut requested — check your home screen';
+      feedbackEl.style.color = '#888';
+    }
+  }, 500);
 }
 
 // Scroll focused input into view when keyboard opens
