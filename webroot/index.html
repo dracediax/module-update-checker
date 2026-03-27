@@ -55,6 +55,27 @@
   .module-options label.disabled { opacity: 0.35; pointer-events: none; }
   .module-options input { width: 14px; height: 14px; vertical-align: middle; }
   .ci-version { color: #dd8800; font-size: 11px; font-weight: 600; }
+  .mod-menu-btn {
+    background: none; border: none; color: var(--fg5); font-size: 18px;
+    cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; opacity: 0.6;
+  }
+  .mod-menu-btn:active { opacity: 1; }
+  .mod-menu {
+    display: none; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 12px;
+  }
+  .mod-menu.open { display: block; }
+  .mod-menu-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .mod-menu-row:last-child { margin-bottom: 0; }
+  .mod-menu-label { color: var(--fg4); font-size: 11px; }
+  .mod-menu-action {
+    background: none; border: none; cursor: pointer; font-size: 12px;
+    padding: 4px 8px; border-radius: 6px;
+  }
+  .mod-menu-action.rollback { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+  .mod-menu-action.rollback:active { opacity: 0.7; }
+  .mod-menu-action.delete { color: var(--red); opacity: 0.7; }
+  .mod-menu-action.delete:active { opacity: 1; }
   .module-info { flex: 1; min-width: 0; }
   .module-name {
     font-size: 15px; font-weight: 500; color: var(--fg2);
@@ -634,32 +655,64 @@ function renderModuleCard(mod, list) {
   card.className = 'module-card' + (tracked ? ' tracked' : '');
   card.id = 'card-' + mod.id;
   card.setAttribute('data-name', mod.name.toLowerCase());
+  var mid = escapeAttr(mod.id);
   card.innerHTML =
     '<div class="module-info">' +
-      '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
-      '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
-        ' <span id="upd-' + escapeAttr(mod.id) + '"></span>' +
-        '<span class="update-status" id="upd-status-' + escapeAttr(mod.id) + '"></span></div>' +
+      '<div style="display:flex;align-items:center;gap:6px">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
+          '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
+            ' <span id="upd-' + mid + '"></span></div>' +
+        '</div>' +
+        '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
+      '</div>' +
       '<div class="module-repo">' +
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
-               'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input" onblur="autoSaveConfig()">' +
+               'value="' + escapeAttr(repo) + '" data-id="' + mid + '" class="repo-input" onblur="autoSaveConfig()">' +
       '</div>' +
       '<div class="module-options">' +
         '<span style="font-size:11px;color:var(--fg5)">Include:</span>' +
         '<label class="' + (tracked ? '' : 'disabled') + '">' +
-          '<input type="checkbox" ' + (preRelease ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="pre-release" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
+          '<input type="checkbox" ' + (preRelease ? 'checked' : '') + ' data-id="' + mid + '" class="pre-release" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'Pre-releases</label>' +
         (ghToken ? '<label class="' + (tracked ? '' : 'disabled') + '">' +
-          '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
+          '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + mid + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'CI builds</label>' : '') +
+      '</div>' +
+      '<div class="mod-menu" id="menu-' + mid + '">' +
+        '<div class="mod-menu-label">Backup</div>' +
+        '<div id="upd-status-' + mid + '" style="margin-top:4px"></div>' +
       '</div>' +
     '</div>' +
     '<label class="toggle">' +
-      '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
+      '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + mid + '" ' +
              'onchange="toggleTracked(this)">' +
       '<span class="slider"></span>' +
     '</label>';
   list.appendChild(card);
+}
+
+function toggleModMenu(modId) {
+  var menu = document.getElementById('menu-' + modId);
+  if (!menu) return;
+  menu.classList.toggle('open');
+  // Populate backup status when opening
+  if (menu.classList.contains('open')) {
+    var statusEl = document.getElementById('upd-status-' + modId);
+    if (statusEl && !statusEl.innerHTML) {
+      var backupVer = exec("grep '^version=' /data/adb/muc/backups/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
+      var installedVer = '';
+      for (var m = 0; m < modules.length; m++) {
+        if (modules[m].id === modId) { installedVer = modules[m].version; break; }
+      }
+      if (backupVer && normalizeVersion(backupVer) !== normalizeVersion(installedVer)) {
+        statusEl.innerHTML = '<button class="mod-menu-action rollback" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback to ' + escapeHtml(backupVer) + '</button> ' +
+          '<button class="mod-menu-action delete" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715 Delete backup</button>';
+      } else {
+        statusEl.innerHTML = '<span style="color:var(--fg5);font-size:11px">No backup available</span>';
+      }
+    }
+  }
 }
 
 function toggleTracked(el) {
@@ -1131,10 +1184,11 @@ function updateModule(modId, assetUrl, btn) {
         btn.textContent = '\u2713 ' + modName + ' — Installed';
         btn.className = 'btn-update done';
         if (statusEl) {
-          statusEl.innerHTML = '<div style="margin-top:4px;font-size:11px">' +
-            '<a style="color:var(--accent);cursor:pointer;text-decoration:none" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 rollback</a>' +
-            ' <span style="color:var(--fg5)">\u00b7</span> ' +
-            '<a style="color:var(--fg5);cursor:pointer;text-decoration:none;opacity:0.6" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">remove backup</a></div>';
+          statusEl.innerHTML = '<button class="mod-menu-action rollback" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback</button> ' +
+            '<button class="mod-menu-action delete" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715 Delete</button>';
+          // Open the menu to show it
+          var menu = document.getElementById('menu-' + modId);
+          if (menu) menu.classList.add('open');
         }
 
         exec("grep -v '^" + modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
@@ -1772,30 +1826,7 @@ function backupModule(modId) {
 }
 
 function loadRollbackButtons() {
-  var backupList = exec("ls -d /data/adb/muc/backups/*/ 2>/dev/null | tr '\\n' '|'");
-  if (!backupList) return;
-  var backups = backupList.split('|');
-  for (var i = 0; i < backups.length; i++) {
-    var path = backups[i].trim().replace(/\/$/, '');
-    if (!path) continue;
-    var modId = path.replace(/.*\//, '');
-    var statusEl = document.getElementById('upd-status-' + modId);
-    if (statusEl && !statusEl.innerHTML) {
-      var backupVer = exec("grep '^version=' /data/adb/muc/backups/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
-      // Only show rollback if backup version differs from installed
-      var installedVer = '';
-      for (var m = 0; m < modules.length; m++) {
-        if (modules[m].id === modId) { installedVer = modules[m].version; break; }
-      }
-      if (backupVer && normalizeVersion(backupVer) !== normalizeVersion(installedVer)) {
-        statusEl.innerHTML = '<div style="margin-top:4px;font-size:11px">' +
-          '<a style="color:var(--accent);cursor:pointer;text-decoration:none" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 rollback to ' + escapeHtml(backupVer) + '</a>' +
-          ' <span style="color:var(--fg5)">\u00b7</span> ' +
-          '<a style="color:var(--fg5);cursor:pointer;text-decoration:none;opacity:0.6" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">remove backup</a>' +
-          '</div>';
-      }
-    }
-  }
+  // Rollback status now loaded on-demand via cogwheel menu (toggleModMenu)
 }
 
 function rollbackModule(modId, el) {
