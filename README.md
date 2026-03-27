@@ -93,16 +93,18 @@ Enter any `owner/repo` manually for modules not listed.
 
 ### Companion APK
 
-A lightweight companion app (16KB) is bundled and auto-installed on boot for enhanced notifications:
+A lightweight companion app (~20KB) is bundled and auto-installed on boot:
 
 | Feature | Status |
 |---------|--------|
-| Branded notifications | "Module Update Checker" sender name |
-| Custom notification icon | MUC logo icon |
+| Branded notifications | "Module Update Checker" sender name with custom icon |
 | Tap notification | Opens KSU Manager |
-| Home screen shortcut | WIP — ShortcutManager integration |
+| Home screen shortcut | Adds "Module Updates" shortcut to home screen |
+| Update All | Single button to update all modules at once |
 
 The module works fully without the companion app — falls back to shell notifications.
+
+> **Note:** Notification tap and shortcut open KSU Manager's main screen, not directly to this module's WebUI page. KSU's WebUIActivity is not exported, so deep linking from external apps is not possible. This is a KSU limitation — modules like LSPosed work around this by having their own full manager APK.
 
 ---
 
@@ -150,7 +152,7 @@ The module works fully without the companion app — falls back to shell notific
 - SUSFS reports kernel version, not module version
 - CI artifacts require GitHub token
 - Update button needs `.zip` release asset
-- KSU Next WebUI activity is not exported — can't deep-link notification tap to module page
+- Notification tap and shortcut open KSU Manager main screen — WebUIActivity is not exported, deep linking not possible from external apps (LSPosed works differently because it has its own standalone manager APK)
 
 </details>
 
