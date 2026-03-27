@@ -112,6 +112,18 @@
   .update-status {
     display: block; font-size: 11px; margin-top: 4px; color: #888; text-align: center;
   }
+  .btn-update-all {
+    width: 100%; padding: 14px; background: #2a6a2a; color: #fff;
+    border: none; border-radius: 12px; font-size: 15px;
+    font-weight: 600; cursor: pointer; margin-top: 12px;
+    display: none; letter-spacing: 0.5px;
+  }
+  .btn-update-all:active { background: #1a5a1a; }
+  .btn-update-all:disabled { background: #333; color: #666; cursor: default; }
+  .update-all-progress {
+    font-size: 12px; color: #888; text-align: center;
+    margin-top: 6px; min-height: 16px;
+  }
   .reboot-banner {
     display: none; position: fixed; top: 0; left: 0; right: 0;
     background: #2a4a6a; color: #fff; padding: 14px 16px;
@@ -194,6 +206,9 @@
 
 <div class="section-label">Installed Modules</div>
 <div id="modules-list"><div class="loading">Loading modules...</div></div>
+
+<button class="btn-update-all" id="update-all-btn" onclick="updateAll()">Update All</button>
+<div class="update-all-progress" id="update-all-progress"></div>
 
 <button class="settings-toggle" onclick="toggleSettings()">Settings</button>
 <div class="settings-panel" id="settings-panel">
@@ -544,6 +559,7 @@ function loadCachedUpdates() {
   if (count > 0) {
     document.getElementById('status').textContent = count + ' update(s) available (from background check)';
   }
+  showUpdateAllButton();
 }
 
 function escapeHtml(s) {
@@ -715,9 +731,8 @@ function checkNow() {
     }
     if (!mod) { idx++; setTimeout(checkNext, 10); return; }
 
-    var installedClean = normalizeVersion(mod.version);
     var badgeHtml = '';
-    var hasReleaseUpdate = releaseLatest && (normalizeVersion(releaseLatest) !== installedClean);
+    var hasReleaseUpdate = releaseLatest && isNewer(mod.version, releaseLatest);
     var hasCiUpdate = !!ciLatest;
 
     if (hasReleaseUpdate) {
@@ -808,6 +823,7 @@ function checkNow() {
     var now = Math.floor(Date.now() / 1000);
     exec("echo '" + now + "' > /data/adb/muc_last_check");
     updateApiStats();
+    showUpdateAllButton();
   }
 
   checkNext();
@@ -875,6 +891,126 @@ function updateModule(modId, assetUrl, btn) {
   }, 10);
 }
 
+var pendingUpdates = []; // {modId, modName, assetUrl, btn}
+
+function collectPendingUpdates() {
+  pendingUpdates = [];
+  var btns = document.querySelectorAll('.btn-update');
+  for (var i = 0; i < btns.length; i++) {
+    var b = btns[i];
+    if (b.disabled || b.className.indexOf('done') !== -1) continue;
+    var onclick = b.getAttribute('onclick') || '';
+    var m = onclick.match(/updateModule\('([^']+)',\s*'([^']+)'/);
+    if (!m) continue;
+    var modId = m[1];
+    var assetUrl = m[2];
+    var modName = modId;
+    for (var j = 0; j < modules.length; j++) {
+      if (modules[j].id === modId) { modName = modules[j].name; break; }
+    }
+    pendingUpdates.push({ modId: modId, modName: modName, assetUrl: assetUrl, btn: b });
+  }
+  return pendingUpdates.length;
+}
+
+function showUpdateAllButton() {
+  var count = collectPendingUpdates();
+  var btn = document.getElementById('update-all-btn');
+  if (count >= 2) {
+    btn.style.display = 'block';
+    btn.textContent = '\u2191 Update All (' + count + ' modules)';
+    btn.disabled = false;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function updateAll() {
+  var count = collectPendingUpdates();
+  if (count === 0) return;
+
+  var allBtn = document.getElementById('update-all-btn');
+  var progressEl = document.getElementById('update-all-progress');
+  allBtn.disabled = true;
+  var total = pendingUpdates.length;
+  var completed = 0;
+  var failed = 0;
+  var idx = 0;
+
+  function updateNext() {
+    if (idx >= pendingUpdates.length) {
+      // All done
+      var msg = completed + ' of ' + total + ' updated';
+      if (failed > 0) msg += ' (' + failed + ' failed)';
+      allBtn.textContent = '\u2713 ' + msg;
+      allBtn.className = 'btn-update-all';
+      allBtn.style.background = '#2a4a6a';
+      progressEl.textContent = '';
+      if (completed > 0) {
+        document.getElementById('reboot-banner').style.display = 'block';
+        document.getElementById('reboot-btn').style.display = 'block';
+      }
+      return;
+    }
+
+    var item = pendingUpdates[idx];
+    progressEl.textContent = 'Updating ' + item.modName + ' (' + (idx + 1) + '/' + total + ')...';
+    allBtn.textContent = '\u2191 Updating ' + (idx + 1) + '/' + total + '...';
+
+    var zipPath = '/data/local/tmp/muc_' + item.modId + '.zip';
+    item.btn.disabled = true;
+    item.btn.textContent = '\u2913 Downloading...';
+    item.btn.className = 'btn-update downloading';
+
+    setTimeout(function() {
+      var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + item.assetUrl + "' 2>&1 && echo DL_OK");
+      if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
+        item.btn.textContent = 'Failed';
+        item.btn.className = 'btn-update';
+        failed++;
+        idx++;
+        setTimeout(updateNext, 10);
+        return;
+      }
+
+      item.btn.textContent = 'Installing...';
+      item.btn.className = 'btn-update installing';
+
+      setTimeout(function() {
+        var installResult = exec("ksud module install " + zipPath + " 2>&1");
+        debugLog.push({ updateAll: item.modId, step: 'ksud_install', result: installResult });
+
+        if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
+          var fallback = exec("unzip -o " + zipPath + " -d /data/adb/modules/" + item.modId + "/ 2>&1 && echo INSTALL_OK");
+          debugLog.push({ updateAll: item.modId, step: 'manual_install', result: fallback });
+
+          if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
+            item.btn.textContent = 'Failed';
+            item.btn.className = 'btn-update';
+            exec("rm -f " + zipPath);
+            failed++;
+            idx++;
+            setTimeout(updateNext, 10);
+            return;
+          }
+        }
+
+        exec("rm -f " + zipPath);
+        item.btn.textContent = '\u2713 ' + item.modName + ' — Installed';
+        item.btn.className = 'btn-update done';
+
+        exec("grep -v '^" + item.modId + "|' /data/adb/muc_update_cache > /data/adb/muc_update_cache.tmp 2>/dev/null; mv /data/adb/muc_update_cache.tmp /data/adb/muc_update_cache 2>/dev/null");
+
+        completed++;
+        idx++;
+        setTimeout(updateNext, 10);
+      }, 10);
+    }, 10);
+  }
+
+  updateNext();
+}
+
 function rebootNow() {
   exec("svc power reboot || reboot");
 }
@@ -890,6 +1026,65 @@ function normalizeVersion(v) {
   v = v.replace(/[-+][0-9a-f]{6,}$/i, ''); // strip commit hashes like -0419e67
   v = v.trim();
   return v;
+}
+
+// Semantic version comparison
+// Returns: 1 if a > b, -1 if a < b, 0 if equal
+// Handles: 1.2.3, 1.2.3-rc.1, 1.2.3.4 (4-part), pre-release tags
+function compareVersions(a, b) {
+  if (!a || !b) return 0;
+  a = normalizeVersion(a);
+  b = normalizeVersion(b);
+  if (a === b) return 0;
+
+  // Split into numeric part and pre-release
+  var splitPre = function(v) {
+    var idx = v.indexOf('-');
+    if (idx === -1) return { nums: v, pre: '' };
+    return { nums: v.substring(0, idx), pre: v.substring(idx + 1) };
+  };
+
+  var pa = splitPre(a), pb = splitPre(b);
+  var na = pa.nums.split('.'), nb = pb.nums.split('.');
+  var len = Math.max(na.length, nb.length);
+
+  for (var i = 0; i < len; i++) {
+    var x = parseInt(na[i]) || 0;
+    var y = parseInt(nb[i]) || 0;
+    if (x > y) return 1;
+    if (x < y) return -1;
+  }
+
+  // Numeric parts equal — check pre-release
+  // No pre-release > has pre-release (1.0.0 > 1.0.0-rc.1)
+  if (!pa.pre && pb.pre) return 1;
+  if (pa.pre && !pb.pre) return -1;
+  if (pa.pre && pb.pre) {
+    // Compare pre-release segments
+    var pra = pa.pre.split('.'), prb = pb.pre.split('.');
+    var prLen = Math.max(pra.length, prb.length);
+    for (var j = 0; j < prLen; j++) {
+      var sa = pra[j] || '', sb = prb[j] || '';
+      var ia = parseInt(sa), ib = parseInt(sb);
+      var aNum = !isNaN(ia), bNum = !isNaN(ib);
+      if (aNum && bNum) {
+        if (ia > ib) return 1;
+        if (ia < ib) return -1;
+      } else if (aNum !== bNum) {
+        return aNum ? -1 : 1; // numeric < string
+      } else {
+        if (sa > sb) return 1;
+        if (sa < sb) return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+// Check if latest is newer than installed
+function isNewer(installed, latest) {
+  return compareVersions(latest, installed) > 0;
 }
 
 function dbgSection(title, content) {
@@ -922,21 +1117,24 @@ function showDebug() {
   if (modules.length === 0) s1 = '<span class="dbg-warn">No modules discovered</span>\n';
   html += dbgSection('MODULES (' + modules.length + ')', s1);
 
-  // Section 2: version normalization check
+  // Section 2: version comparison test
   var s2 = '';
   var testCases = [
-    ['v1.4.1 (245-72b2e84-release)', '1.4.1'],
-    ['v1.0.0-rc.6-release', 'v1.0.0-rc.6'],
-    ['v4.1.2.2-it (7455)', 'v4.1.2'],
-    ['v4.1.2.0-0419e67', 'v1.5.2+_R26']
+    ['v1.4.1 (245-72b2e84-release)', '1.4.1', 0],       // same after normalize
+    ['v1.0.0-rc.5', 'v1.0.0-rc.6', 1],                    // rc.6 > rc.5
+    ['v1.0.0-rc.6', 'v1.0.0', 1],                          // release > rc
+    ['v4.1.2', 'v4.1.3', 1],                                // patch bump
+    ['v4.1.2', 'v4.1.2', 0],                                // equal
+    ['v2.0.0', 'v1.9.9', -1]                                // downgrade
   ];
   for (var tc = 0; tc < testCases.length; tc++) {
-    var a = testCases[tc][0], b = testCases[tc][1];
-    var na = normalizeVersion(a), nb = normalizeVersion(b);
-    var match = na === nb;
-    s2 += dbgLine(a + '  vs  ' + b, (match ? 'MATCH' : 'DIFF') + '  [' + na + '] vs [' + nb + ']', match ? 'dbg-ok' : 'dbg-warn');
+    var a = testCases[tc][0], b = testCases[tc][1], expected = testCases[tc][2];
+    var result = compareVersions(b, a);
+    var label = result > 0 ? 'NEWER' : (result < 0 ? 'OLDER' : 'SAME');
+    var pass = result === expected;
+    s2 += dbgLine(b + ' vs installed ' + a, label + (pass ? ' \u2713' : ' \u2717 expected ' + expected), pass ? 'dbg-ok' : 'dbg-err');
   }
-  html += dbgSection('VERSION NORMALIZE TEST', s2);
+  html += dbgSection('VERSION COMPARISON TEST', s2);
 
   // Section 3: API stats
   var s3 = '';
@@ -967,7 +1165,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.1.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
