@@ -62,7 +62,13 @@ A companion app is bundled with the module and auto-installed on boot. It provid
 - **Branded notifications** — shows "Module Update Checker" with custom icon
 - **No root grant needed** — communicates with the module's root daemon via IPC, no Superuser prompt required
 
-The module also works inside KSU Manager's WebUI as usual.
+You can **disable the companion app** in Settings > Standalone App. When disabled:
+- The app is uninstalled on next reboot
+- Notifications fall back to shell ("Shell" sender, not tappable)
+- No app in the drawer or home screen shortcut
+- The module continues to work fully via KSU Manager's WebUI
+
+Re-enable the toggle and reboot to reinstall.
 
 ---
 
