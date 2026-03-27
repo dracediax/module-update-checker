@@ -804,8 +804,8 @@ function checkNow() {
       if (assetMatch) releaseAsset = assetMatch[1];
     }
 
-    // 2. Check CI builds (if token available AND not ignored for this repo, OR if CI-only repo)
-    if (isCiOnly || ghToken) {
+    // 2. Check CI builds (skip if muted, unless CI-only repo)
+    if ((isCiOnly || ghToken) && (!ciMuted || isCiOnly)) {
       var ciResult = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs?status=success&per_page=1' | tr -d '\\n'");
       trackApiCall();
 
@@ -873,8 +873,8 @@ function checkNow() {
       if (isCiOnly) cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
     }
 
-    // Show CI info (informational only when release is up to date)
-    if (hasCiUpdate) {
+    // Show CI info only if not muted
+    if (hasCiUpdate && !ciMuted) {
       badgeHtml += '<div style="margin-top:6px"><span style="color:#888;font-size:11px">CI: ' + escapeHtml(ciLatest) + '</span>';
       if (ciAsset && ghToken) {
         badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
