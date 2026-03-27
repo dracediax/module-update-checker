@@ -4,4 +4,4 @@ version=v5.2.1
 versionCode=98
 updateJson=https://raw.githubusercontent.com/dracediax/module-update-checker/main/update.json
 author=dracediax
-description=Check for KSU module updates from GitHub
+description=Track, check, and update your root modules from GitHub
