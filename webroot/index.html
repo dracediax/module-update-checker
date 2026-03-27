@@ -1785,7 +1785,8 @@ function loadRollbackButtons() {
         if (modules[m].id === modId) { installedVer = modules[m].version; break; }
       }
       if (backupVer && normalizeVersion(backupVer) !== normalizeVersion(installedVer)) {
-        statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback to ' + escapeHtml(backupVer) + '</button>';
+        statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback to ' + escapeHtml(backupVer) + '</button>' +
+          ' <button class="btn-changelog" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this)" style="color:var(--fg5)">delete backup</button>';
       }
     }
   }
@@ -1804,6 +1805,12 @@ function rollbackModule(modId, btn) {
   if (btn) { btn.textContent = '\u2713 Rolled back — reboot to apply'; btn.className = 'btn-update done'; }
   document.getElementById('reboot-banner').style.display = 'block';
   document.getElementById('reboot-btn').style.display = 'block';
+}
+
+function deleteBackup(modId, btn) {
+  exec("rm -rf /data/adb/muc/backups/" + modId);
+  var statusEl = document.getElementById('upd-status-' + modId);
+  if (statusEl) statusEl.innerHTML = '';
 }
 
 detectKsuPackage();
