@@ -1,14 +1,17 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
-CONFIG="/data/adb/muc_config.json"
+MUC_DIR="/data/adb/muc"
+mkdir -p "$MUC_DIR"
+CONFIG="$MUC_DIR/config.json"
 TRIGGER="$MODDIR/notify_trigger"
 LOGFILE="$MODDIR/service.log"
 LAST_NOTIF="$MODDIR/last_notif"
-UPDATE_CACHE="/data/adb/muc_update_cache"
-TOKEN_FILE="/data/adb/muc_token"
-SETTINGS_FILE="/data/adb/muc_settings"
-API_STATS_FILE="/data/adb/muc_api_stats"
-LAST_CHECK_FILE="/data/adb/muc_last_check"
+UPDATE_CACHE="$MUC_DIR/update_cache"
+TOKEN_FILE="$MUC_DIR/token"
+SETTINGS_FILE="$MUC_DIR/settings"
+API_STATS_FILE="$MUC_DIR/api_stats"
+LAST_CHECK_FILE="$MUC_DIR/last_check"
+KSU_PKG_FILE="$MUC_DIR/ksu_package"
 CHECK_INTERVAL=86400  # 24 hours
 POLL_INTERVAL=60      # check trigger file every 60s
 
@@ -38,8 +41,14 @@ if [ "$net_wait" -ge 90 ]; then
     log "network timeout after 90s — proceeding anyway"
 fi
 
-# Always install/update companion APK on boot (ensures permission updates take effect)
-if [ -f "$MODDIR/muc-helper.apk" ]; then
+# Check if companion app is disabled by user
+companion_enabled="on"
+if [ -f "$SETTINGS_FILE" ]; then
+    companion_setting=$(grep '^companion_app=' "$SETTINGS_FILE" | cut -d= -f2)
+    [ "$companion_setting" = "off" ] && companion_enabled="off"
+fi
+
+if [ "$companion_enabled" = "on" ] && [ -f "$MODDIR/muc-helper.apk" ]; then
     log "installing companion APK..."
     pm install -r -g "$MODDIR/muc-helper.apk" >/dev/null 2>&1
     if [ $? -eq 0 ]; then
@@ -47,10 +56,12 @@ if [ -f "$MODDIR/muc-helper.apk" ]; then
     else
         log "companion APK install failed"
     fi
-    # Grant notification permission (required on Android 13+)
     pm grant com.dracediax.muc android.permission.POST_NOTIFICATIONS >/dev/null 2>&1
-    # Take app out of stopped state
     am start -n com.dracediax.muc/.DummyActivity >/dev/null 2>&1
+elif [ "$companion_enabled" = "off" ]; then
+    # Uninstall if disabled
+    pm uninstall com.dracediax.muc >/dev/null 2>&1
+    log "companion APK disabled by user"
 fi
 
 track_api_call() {
@@ -148,16 +159,17 @@ send_notification() {
     log "sending notification: $title | $text"
 
     # Try companion APK first (explicit broadcast with ksu package for tap-to-open)
-    local ksu_pkg=$(cat /data/adb/muc_ksu_package 2>/dev/null)
+    local ksu_pkg=$(cat $KSU_PKG_FILE 2>/dev/null)
     local ksu_arg=""
     [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
     local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" $ksu_arg 2>&1)
     log "companion app: $result"
 
-    # Fallback to shell if companion not installed
+    # Fallback to shell if companion not installed or disabled
     if echo "$result" | grep -qi "not found\|error"; then
         log "companion not available, falling back to shell"
-        result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$text'" 2>&1)
+        local shell_text=$(echo "$text" | tr '\n' '|' | sed 's/|/ | /g')
+        result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$shell_text'" 2>&1)
         log "shell notification: $result"
     fi
 
