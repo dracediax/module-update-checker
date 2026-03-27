@@ -870,27 +870,45 @@ function updateModule(modId, assetUrl, btn) {
     btn.textContent = 'Installing...';
     btn.className = 'btn-update installing';
 
-    // Step 2: Install
+    // Step 2: Handle CI artifacts (zip-wrapped zip) and install
     setTimeout(function() {
-      var installResult = exec("ksud module install " + zipPath + " 2>&1");
+      // Check if this is a CI artifact (outer zip wrapping inner zip)
+      var isCiArtifact = assetUrl.indexOf('/actions/') !== -1 && assetUrl.indexOf('/artifacts/') !== -1;
+      var installZip = zipPath;
+
+      if (isCiArtifact) {
+        // Extract inner zip from CI artifact wrapper
+        var extractDir = '/data/local/tmp/muc_ci_extract';
+        exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
+        exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
+        var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
+        if (innerZip) {
+          debugLog.push({ update: modId, step: 'ci_unwrap', innerZip: innerZip });
+          installZip = innerZip;
+        } else {
+          debugLog.push({ update: modId, step: 'ci_unwrap', error: 'no inner zip found' });
+        }
+      }
+
+      var installResult = exec("ksud module install " + installZip + " 2>&1");
       debugLog.push({ update: modId, step: 'ksud_install', result: installResult });
 
       if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
-        var fallback = exec("unzip -o " + zipPath + " -d /data/adb/modules/" + modId + "/ 2>&1 && echo INSTALL_OK");
+        var fallback = exec("unzip -o " + installZip + " -d /data/adb/modules/" + modId + "/ 2>&1 && echo INSTALL_OK");
         debugLog.push({ update: modId, step: 'manual_install', result: fallback });
 
         if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
           btn.textContent = 'Failed';
           btn.className = 'btn-update';
           if (statusEl) statusEl.textContent = 'Install failed — check debug';
-          exec("rm -f " + zipPath);
+          exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
           return;
         }
       }
 
       // Step 3: Cleanup and show result
       setTimeout(function() {
-        exec("rm -f " + zipPath);
+        exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
         btn.textContent = '\u2713 ' + modName + ' — Installed';
         btn.className = 'btn-update done';
         if (statusEl) statusEl.textContent = '';
@@ -990,17 +1008,32 @@ function updateAll() {
       item.btn.className = 'btn-update installing';
 
       setTimeout(function() {
-        var installResult = exec("ksud module install " + zipPath + " 2>&1");
+        // Handle CI artifacts (zip-wrapped zip)
+        var isCiArtifact = item.assetUrl.indexOf('/actions/') !== -1 && item.assetUrl.indexOf('/artifacts/') !== -1;
+        var installZip = zipPath;
+
+        if (isCiArtifact) {
+          var extractDir = '/data/local/tmp/muc_ci_extract';
+          exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
+          exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
+          var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
+          if (innerZip) {
+            debugLog.push({ updateAll: item.modId, step: 'ci_unwrap', innerZip: innerZip });
+            installZip = innerZip;
+          }
+        }
+
+        var installResult = exec("ksud module install " + installZip + " 2>&1");
         debugLog.push({ updateAll: item.modId, step: 'ksud_install', result: installResult });
 
         if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
-          var fallback = exec("unzip -o " + zipPath + " -d /data/adb/modules/" + item.modId + "/ 2>&1 && echo INSTALL_OK");
+          var fallback = exec("unzip -o " + installZip + " -d /data/adb/modules/" + item.modId + "/ 2>&1 && echo INSTALL_OK");
           debugLog.push({ updateAll: item.modId, step: 'manual_install', result: fallback });
 
           if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
             item.btn.textContent = 'Failed';
             item.btn.className = 'btn-update';
-            exec("rm -f " + zipPath);
+            exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
             failed++;
             idx++;
             setTimeout(updateNext, 10);
@@ -1008,7 +1041,7 @@ function updateAll() {
           }
         }
 
-        exec("rm -f " + zipPath);
+        exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
         item.btn.textContent = '\u2713 ' + item.modName + ' — Installed';
         item.btn.className = 'btn-update done';
 
@@ -1178,7 +1211,45 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3.1</div>' + html + '</div>';
+  // Section 5: KSU Intent Debug
+  var s5 = '';
+  var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
+  s5 += dbgLine('ksu package', pkg || '(not detected)', pkg ? 'dbg-ok' : 'dbg-err');
+  if (pkg) {
+    // Check companion APK installed
+    var companionPath = exec("pm path com.dracediax.muc 2>/dev/null | tr -d '\\n'");
+    s5 += dbgLine('companion APK', companionPath || '(not installed)', companionPath ? 'dbg-ok' : 'dbg-err');
+
+    // Check QUERY_ALL_PACKAGES
+    var perms = exec("dumpsys package com.dracediax.muc 2>/dev/null | grep QUERY_ALL | head -1 | tr -d '\\n'");
+    s5 += dbgLine('QUERY_ALL_PACKAGES', perms || '(not found)', perms ? 'dbg-ok' : 'dbg-err');
+
+    // List exported activities of KSU Manager
+    var activities = exec("dumpsys package " + pkg + " 2>/dev/null | grep -A1 'Activity.*exported=true' | grep -o '" + pkg + "[^\"]*' | tr '\\n' '|'");
+    if (activities) {
+      var actList = activities.split('|');
+      for (var ai = 0; ai < actList.length; ai++) {
+        if (actList[ai].trim()) {
+          s5 += dbgLine('exported activity', actList[ai].trim(), 'dbg-dim');
+        }
+      }
+    } else {
+      s5 += dbgLine('exported activities', '(none found or dumpsys failed)', 'dbg-warn');
+    }
+
+    // Check launcher intent
+    var launcherActivity = exec("cmd package resolve-activity --brief " + pkg + " 2>/dev/null | tail -1 | tr -d '\\n'");
+    s5 += dbgLine('launcher activity', launcherActivity || '(not resolved)', launcherActivity ? 'dbg-ok' : 'dbg-warn');
+
+    // SharedPreferences status
+    var prefsFile = exec("ls /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
+    var prefsKsu = exec("grep ksu_package /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
+    s5 += dbgLine('prefs file', prefsFile ? 'exists' : 'missing', prefsFile ? 'dbg-ok' : 'dbg-warn');
+    s5 += dbgLine('prefs ksu_package', prefsKsu || '(not set)', prefsKsu ? 'dbg-ok' : 'dbg-warn');
+  }
+  html += dbgSection('KSU INTENT DEBUG', s5);
+
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3.2</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1335,29 +1406,32 @@ function addShortcut() {
     return;
   }
 
-  // Clear old result
-  exec("rm -f /data/local/tmp/muc_shortcut_result");
+  feedbackEl.textContent = 'Creating shortcut...';
+  feedbackEl.style.color = '#888';
 
-  var result = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.SHORTCUT --es ksu_package " + pkg + " 2>&1");
-  debugLog.push({ shortcut: result });
+  // Method 1: Use companion APK's ShortcutActivity (Activity context for requestPinShortcut)
+  var result = exec("am start -n com.dracediax.muc/.ShortcutActivity -a com.dracediax.muc.CREATE_SHORTCUT --es ksu_package " + pkg + " 2>&1");
+  debugLog.push({ shortcut: 'am start ShortcutActivity', result: result });
 
-  // Read result from companion APK
   setTimeout(function() {
     var res = exec("cat /data/local/tmp/muc_shortcut_result 2>/dev/null").trim();
+    debugLog.push({ shortcut: 'result file', result: res || '(empty)' });
+
     if (res.indexOf('ok|') === 0) {
       feedbackEl.textContent = 'Shortcut added (' + res.split('|')[1] + ')';
       feedbackEl.style.color = '#4a4';
-    } else if (res.indexOf('fail|') === 0) {
-      feedbackEl.textContent = 'Failed: ' + res.split('|')[1];
-      feedbackEl.style.color = '#f85149';
-    } else if (!result || result.indexOf('not found') !== -1 || result.indexOf('Error') !== -1) {
-      feedbackEl.textContent = 'Companion app not installed — reflash module and reboot';
-      feedbackEl.style.color = '#d29922';
     } else {
-      feedbackEl.textContent = 'Shortcut requested — check your home screen';
+      // Method 2: Legacy broadcast from shell (how LSPosed does it)
+      feedbackEl.textContent = 'Trying legacy method...';
+      var legacy = exec("am broadcast -a com.android.launcher.action.INSTALL_SHORTCUT " +
+        "--es android.intent.extra.shortcut.NAME 'Module Updates' " +
+        "--ez duplicate false " +
+        "-n com.dracediax.muc/.ShortcutActivity 2>&1");
+      debugLog.push({ shortcut: 'legacy broadcast', result: legacy });
+      feedbackEl.textContent = 'Shortcut requested — check home screen. If nothing, check debug.';
       feedbackEl.style.color = '#888';
     }
-  }, 500);
+  }, 1000);
 }
 
 // Scroll focused input into view when keyboard opens
