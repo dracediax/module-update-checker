@@ -1794,7 +1794,9 @@ function rollbackModule(modId, btn) {
   }
   if (btn) { btn.disabled = true; btn.textContent = 'Rolling back...'; }
   exec("rm -rf /data/adb/modules/" + modId + "/* && cp -r /data/adb/muc/backups/" + modId + "/* /data/adb/modules/" + modId + "/ 2>&1");
-  if (btn) { btn.textContent = '\u2713 Rolled back'; btn.className = 'btn-update done'; }
+  // Delete backup after successful rollback
+  exec("rm -rf /data/adb/muc/backups/" + modId);
+  if (btn) { btn.textContent = '\u2713 Rolled back — reboot to apply'; btn.className = 'btn-update done'; }
   document.getElementById('reboot-banner').style.display = 'block';
   document.getElementById('reboot-btn').style.display = 'block';
 }
