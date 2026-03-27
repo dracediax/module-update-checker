@@ -1,7 +1,7 @@
 id=module-update-checker
 name=Module Update Checker
-version=v5.4.1
-versionCode=108
+version=v5.4.2
+versionCode=109
 updateJson=https://raw.githubusercontent.com/dracediax/module-update-checker/main/update.json
 author=dracediax
 description=Track, check, and update your root modules from GitHub
