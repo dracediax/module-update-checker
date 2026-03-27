@@ -24,5 +24,13 @@ if [ -f "/data/adb/modules/module-update-checker/config.json" ] && [ ! -f "/data
     cp /data/adb/modules/module-update-checker/config.json /data/adb/muc/config.json
 fi
 
+# Fix corrupted settings file (older versions wrote literal \n instead of newlines)
+if [ -f "/data/adb/muc/settings" ]; then
+    if grep -q '\\n' "/data/adb/muc/settings" 2>/dev/null; then
+        sed 's/\\n/\n/g' "/data/adb/muc/settings" > "/data/adb/muc/settings.tmp"
+        mv "/data/adb/muc/settings.tmp" "/data/adb/muc/settings"
+        ui_print "- Fixed settings file format"
+    fi
+fi
+
 ui_print "- Data directory: /data/adb/muc/"
-ui_print "- Companion app will be installed on first boot"
