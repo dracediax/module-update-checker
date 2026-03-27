@@ -159,6 +159,19 @@ A personal access token is **optional** but unlocks additional features:
 
 </details>
 
+<details>
+<summary><b>Hiding from Root Detectors</b></summary>
+
+The standalone companion app (`com.dracediax.muc`) is visible in the package list and could be flagged by root detection apps. To hide it:
+
+1. Install [HMA-OSS](https://github.com/myflavor/HMA-OSS) (Hide My Applist)
+2. Add `com.dracediax.muc` to the hide list
+3. Select which apps should not see it (e.g. banking apps, games with root detection)
+
+HMA-OSS hides the app from package manager queries — root detectors won't know it's installed. The module itself (`module-update-checker` in `/data/adb/modules/`) should be handled separately via SUSFS or similar.
+
+</details>
+
 ---
 
 ### License
