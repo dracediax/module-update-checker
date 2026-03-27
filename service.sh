@@ -182,6 +182,52 @@ check_trigger() {
     fi
 }
 
+# Normalize version: strip v prefix, parenthetical, -release, commit hashes
+normalize_version() {
+    echo "$1" | sed 's/^v//i; s/ *(.*) *//g; s/-release$//i; s/[-+][0-9a-f]\{6,\}$//i' | tr -d ' ' | tr '[:upper:]' '[:lower:]'
+}
+
+# Semantic version comparison: returns 0 (true) if $2 is newer than $1
+is_newer() {
+    local a=$(normalize_version "$1")
+    local b=$(normalize_version "$2")
+    [ "$a" = "$b" ] && return 1
+
+    # Split off pre-release
+    local a_num="${a%%-*}" a_pre=""
+    local b_num="${b%%-*}" b_pre=""
+    [ "$a" != "$a_num" ] && a_pre="${a#*-}"
+    [ "$b" != "$b_num" ] && b_pre="${b#*-}"
+
+    # Compare numeric parts
+    local IFS_OLD="$IFS"
+    IFS='.'
+    set -- $a_num
+    local a1="${1:-0}" a2="${2:-0}" a3="${3:-0}" a4="${4:-0}"
+    set -- $b_num
+    local b1="${1:-0}" b2="${2:-0}" b3="${3:-0}" b4="${4:-0}"
+    IFS="$IFS_OLD"
+
+    # Compare major.minor.patch.extra
+    [ "$b1" -gt "$a1" ] 2>/dev/null && return 0
+    [ "$b1" -lt "$a1" ] 2>/dev/null && return 1
+    [ "$b2" -gt "$a2" ] 2>/dev/null && return 0
+    [ "$b2" -lt "$a2" ] 2>/dev/null && return 1
+    [ "$b3" -gt "$a3" ] 2>/dev/null && return 0
+    [ "$b3" -lt "$a3" ] 2>/dev/null && return 1
+    [ "$b4" -gt "$a4" ] 2>/dev/null && return 0
+    [ "$b4" -lt "$a4" ] 2>/dev/null && return 1
+
+    # Numeric equal — check pre-release
+    # No pre > has pre (1.0.0 > 1.0.0-rc.1)
+    [ -z "$b_pre" ] && [ -n "$a_pre" ] && return 0
+    [ -n "$b_pre" ] && [ -z "$a_pre" ] && return 1
+
+    # Both have pre-release — string compare (rough but handles rc.1 < rc.2)
+    [ "$b_pre" \> "$a_pre" ] && return 0
+    return 1
+}
+
 check_updates() {
     log "check_updates start"
 
@@ -246,12 +292,8 @@ check_updates() {
         fi
         log "  latest: $latest"
 
-        # Normalize versions — must match WebUI's normalizeVersion()
-        # Strip: leading v, parenthetical metadata, -release suffix, commit hashes
-        local installed_clean=$(echo "$installed" | sed 's/^v//i; s/ *(.*) *//g; s/-release$//i; s/[-+][0-9a-f]\{6,\}$//i' | tr -d ' ')
-        local latest_clean=$(echo "$latest" | sed 's/^v//i; s/ *(.*) *//g; s/-release$//i; s/[-+][0-9a-f]\{6,\}$//i' | tr -d ' ')
-
-        if [ "$installed_clean" != "$latest_clean" ]; then
+        # Semantic version comparison
+        if is_newer "$installed" "$latest"; then
             update_count=$((update_count + 1))
             local mod_name=$(grep '^name=' "/data/adb/modules/${mod_id}/module.prop" 2>/dev/null | cut -d= -f2)
             [ -z "$mod_name" ] && mod_name="$mod_id"
