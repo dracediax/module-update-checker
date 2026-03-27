@@ -1214,62 +1214,58 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  // Section 5: KSU Intent Debug
+  // Section 5: KSU Intent & Shortcut Debug (single exec call to avoid lag)
   var s5 = '';
   var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
   s5 += dbgLine('ksu package', pkg || '(not detected)', pkg ? 'dbg-ok' : 'dbg-err');
   if (pkg) {
-    var companionPath = exec("pm path com.dracediax.muc 2>/dev/null | tr -d '\\n'");
-    s5 += dbgLine('companion APK', companionPath || '(not installed)', companionPath ? 'dbg-ok' : 'dbg-err');
-
-    var perms = exec("dumpsys package com.dracediax.muc 2>/dev/null | grep QUERY_ALL | head -1 | tr -d '\\n'");
-    s5 += dbgLine('QUERY_ALL_PACKAGES', perms || '(not found)', perms ? 'dbg-ok' : 'dbg-err');
-
-    // All activities of KSU Manager (not just exported)
-    var activities = exec("dumpsys package " + pkg + " 2>/dev/null | grep '" + pkg + "/' | grep -i activity | tr '\\n' '|'");
-    if (activities) {
-      var actList = activities.split('|');
-      for (var ai = 0; ai < actList.length; ai++) {
-        var act = actList[ai].trim();
-        if (act) s5 += dbgLine('activity', act, act.indexOf('exported=true') !== -1 ? 'dbg-ok' : 'dbg-dim');
+    // Single combined command to avoid multiple slow exec calls
+    var dbgData = exec("echo PKG:$(pm path com.dracediax.muc 2>/dev/null) && echo PERM:$(dumpsys package com.dracediax.muc 2>/dev/null | grep QUERY_ALL | head -1) && echo LAUNCH:$(cmd package resolve-activity --brief " + pkg + " 2>/dev/null | tail -1) && echo PREFS:$(cat /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | grep -E 'ksu_package|shortcut_result' | tr '\\n' '~') | tr '\\n' '|'");
+    var dbgParts = {};
+    if (dbgData) {
+      var lines = dbgData.split('|');
+      for (var di = 0; di < lines.length; di++) {
+        var ln = lines[di].trim();
+        if (ln.indexOf('PKG:') === 0) dbgParts.pkg = ln.substring(4);
+        if (ln.indexOf('PERM:') === 0) dbgParts.perm = ln.substring(5);
+        if (ln.indexOf('LAUNCH:') === 0) dbgParts.launch = ln.substring(7);
+        if (ln.indexOf('PREFS:') === 0) dbgParts.prefs = ln.substring(6);
       }
     }
-    // Also try listing activity class names directly
-    var actNames = exec("cmd package dump " + pkg + " 2>/dev/null | grep 'Activity.*' | grep -o '" + pkg + "[^ ]*' | sort -u | tr '\\n' '|'");
-    if (!activities && !actNames) {
-      s5 += dbgLine('activities', '(dumpsys failed)', 'dbg-warn');
-    } else if (actNames) {
-      var nameList = actNames.split('|');
-      for (var ni = 0; ni < nameList.length; ni++) {
-        if (nameList[ni].trim()) s5 += dbgLine('class', nameList[ni].trim(), 'dbg-dim');
+    s5 += dbgLine('companion APK', dbgParts.pkg || '(not installed)', dbgParts.pkg ? 'dbg-ok' : 'dbg-err');
+    s5 += dbgLine('QUERY_ALL_PACKAGES', dbgParts.perm || '(not found)', dbgParts.perm ? 'dbg-ok' : 'dbg-err');
+    s5 += dbgLine('launcher activity', dbgParts.launch || '(not resolved)', dbgParts.launch ? 'dbg-ok' : 'dbg-warn');
+    s5 += dbgLine('WebUIActivity', pkg + '/.ui.webui.WebUIActivity (NOT exported)', 'dbg-warn');
+    s5 += dbgLine('deep link', 'not possible — MainActivity does not forward extras', 'dbg-dim');
+
+    // Parse prefs
+    if (dbgParts.prefs) {
+      var prefsParts = dbgParts.prefs.split('~');
+      for (var pi = 0; pi < prefsParts.length; pi++) {
+        var pp = prefsParts[pi].trim();
+        if (pp) s5 += dbgLine('prefs', pp, 'dbg-dim');
       }
     }
-
-    var launcherActivity = exec("cmd package resolve-activity --brief " + pkg + " 2>/dev/null | tail -1 | tr -d '\\n'");
-    s5 += dbgLine('launcher activity', launcherActivity || '(not resolved)', launcherActivity ? 'dbg-ok' : 'dbg-warn');
-
-    // SharedPreferences
-    var prefsKsu = exec("grep ksu_package /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
-    s5 += dbgLine('prefs ksu_package', prefsKsu || '(not set)', prefsKsu ? 'dbg-ok' : 'dbg-warn');
   }
   html += dbgSection('KSU INTENT DEBUG', s5);
 
-  // Section 6: Shortcut Debug
+  // Section 6: Shortcut Debug (use data already fetched above)
   var s6 = '';
-  var shortcutRes = exec("grep shortcut_result /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
-  s6 += dbgLine('last result', shortcutRes || '(none)', shortcutRes ? (shortcutRes.indexOf('ok|') !== -1 ? 'dbg-ok' : 'dbg-warn') : 'dbg-dim');
-  // Check shortcut logs
+  var shortcutRes = dbgParts && dbgParts.prefs ? dbgParts.prefs : '';
+  var scMatch = shortcutRes.match(/shortcut_result">([^<]*)/);
+  var scResult = scMatch ? scMatch[1] : '';
+  s6 += dbgLine('last result', scResult || '(none)', scResult ? (scResult.indexOf('ok|') === 0 ? 'dbg-ok' : 'dbg-warn') : 'dbg-dim');
   for (var si = 0; si < debugLog.length; si++) {
     if (debugLog[si].shortcut) {
       s6 += dbgLine(debugLog[si].shortcut, debugLog[si].result || '(empty)', 'dbg-dim');
     }
   }
-  if (s6.indexOf('shortcut') === -1 && !shortcutRes) {
+  if (!scResult && debugLog.length === 0) {
     s6 += '<span class="dbg-dim">No shortcut attempts yet</span>\n';
   }
   html += dbgSection('SHORTCUT DEBUG', s6);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.4.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.4.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1433,15 +1429,13 @@ function addShortcut() {
   var result = exec("am start -n com.dracediax.muc/.ShortcutActivity -a com.dracediax.muc.CREATE_SHORTCUT --es ksu_package " + pkg + " 2>&1");
   debugLog.push({ shortcut: 'am start ShortcutActivity', result: result });
 
-  // Read result from SharedPreferences after activity runs
+  // Read result from SharedPreferences (use grep, not cat — exec() only returns first line)
   setTimeout(function() {
-    var prefsXml = exec("cat /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null");
-    var resMatch = prefsXml ? prefsXml.match(/shortcut_result">(.*?)</) : null;
-    var res = resMatch ? resMatch[1] : '';
+    var res = exec("grep -o 'shortcut_result\">[^<]*' /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | sed 's/shortcut_result\">//' | tr -d '\\n'");
     debugLog.push({ shortcut: 'prefs result', result: res || '(empty)' });
 
     if (res.indexOf('ok|') === 0) {
-      feedbackEl.textContent = 'Shortcut requested — check home screen';
+      feedbackEl.textContent = 'Shortcut pinned — check home screen';
       feedbackEl.style.color = '#4a4';
     } else if (res.indexOf('fail|') === 0) {
       feedbackEl.textContent = 'Failed: ' + res.split('|')[1];
