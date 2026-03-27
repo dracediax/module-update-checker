@@ -116,6 +116,17 @@
   .update-status {
     display: block; font-size: 11px; margin-top: 4px; color: #888; text-align: center;
   }
+  .btn-changelog {
+    display: inline-block; background: none; color: #5588cc;
+    font-size: 11px; padding: 4px 0; border: none; cursor: pointer;
+    text-decoration: underline; margin-top: 4px;
+  }
+  .changelog-body {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 12px; margin-top: 6px; font-size: 12px;
+    color: #c9d1d9; line-height: 1.5; white-space: pre-wrap;
+    word-break: break-word; max-height: 200px; overflow-y: auto;
+  }
   .btn-update-all {
     width: 100%; padding: 14px; background: #2a6a2a; color: #fff;
     border: none; border-radius: 12px; font-size: 15px;
@@ -616,9 +627,18 @@ function loadCachedUpdates() {
     var badge = document.getElementById('upd-' + modId);
     if (!badge) continue;
 
+    // Find repo for changelog
+    var repo = '';
+    for (var c = 0; c < config.length; c++) {
+      if (config[c].id === modId) { repo = config[c].repo; break; }
+    }
+
     badge.innerHTML = '<span class="update-available">\u2191 ' + escapeHtml(latest) + '</span>';
     if (assetUrl) {
       badge.innerHTML += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(modId) + '\', \'' + escapeAttr(assetUrl) + '\', this)">\u2191 Update to ' + escapeHtml(latest) + '</button>';
+    }
+    if (repo) {
+      badge.innerHTML += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(repo) + '\', this)">View changelog</button>';
     }
     badge.innerHTML += '<span class="update-status" id="upd-status-' + escapeAttr(modId) + '"></span>';
     count++;
@@ -835,6 +855,7 @@ function checkNow() {
       if (releaseAsset) {
         badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
+      badgeHtml += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(t.repo) + '\', this)">View changelog</button>';
     } else if (hasCiUpdate && !ciMuted) {
       // CI build available and not muted — counts for notification
       updates++;
@@ -922,6 +943,36 @@ function checkNow() {
   checkNext();
 }
 
+function showChangelog(repo, el) {
+  if (el.nextElementSibling && el.nextElementSibling.className === 'changelog-body') {
+    el.nextElementSibling.remove();
+    el.textContent = 'View changelog';
+    return;
+  }
+  el.textContent = 'Loading...';
+  setTimeout(function() {
+    var result = exec("curl -sf --connect-timeout 10" + curlAuth() + " https://api.github.com/repos/" + repo + "/releases/latest | tr -d '\\n'");
+    trackApiCall();
+    var body = '';
+    if (result) {
+      var bodyMatch = result.match(/"body"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (bodyMatch) {
+        body = bodyMatch[1].replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\t/g, '  ').replace(/\\"/g, '"');
+      }
+    }
+    if (body) {
+      var div = document.createElement('div');
+      div.className = 'changelog-body';
+      div.textContent = body;
+      el.parentNode.insertBefore(div, el.nextSibling);
+      el.textContent = 'Hide changelog';
+    } else {
+      el.textContent = 'No changelog available';
+      setTimeout(function() { el.textContent = 'View changelog'; }, 2000);
+    }
+  }, 10);
+}
+
 function updateModule(modId, assetUrl, btn) {
   btn.disabled = true;
   btn.textContent = '\u2913 Downloading...';
@@ -994,6 +1045,8 @@ function updateModule(modId, assetUrl, btn) {
         if (statusEl) statusEl.textContent = '';
 
         exec("grep -v '^" + modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
+        // Log to update history
+        exec("echo '$(date +%Y-%m-%d\\ %H:%M) | " + modName.replace(/'/g, "") + " | " + assetUrl.replace(/.*\/tag\//, '').replace(/\/.*/, '') + "' >> /data/adb/muc/history");
 
         document.getElementById('reboot-banner').style.display = 'block';
         document.getElementById('reboot-btn').style.display = 'block';
@@ -1126,6 +1179,7 @@ function updateAll() {
         item.btn.className = 'btn-update done';
 
         exec("grep -v '^" + item.modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
+        exec("echo '$(date +%Y-%m-%d\\ %H:%M) | " + item.modName.replace(/'/g, "") + " | updated' >> /data/adb/muc/history");
 
         completed++;
         idx++;
@@ -1342,7 +1396,19 @@ function showDebug() {
   }
   html += dbgSection('SHORTCUT DEBUG', s6);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.0</div>' + html + '</div>';
+  // Section 7: Update History
+  var s7 = '';
+  var histRaw = exec("cat /data/adb/muc/history 2>/dev/null | tail -20 | tr '\\n' '|'");
+  if (histRaw) {
+    var histLines = histRaw.split('|');
+    for (var hi = histLines.length - 1; hi >= 0; hi--) {
+      if (histLines[hi].trim()) s7 += dbgLine('', histLines[hi].trim(), 'dbg-dim');
+    }
+  }
+  if (!s7) s7 = '<span class="dbg-dim">No updates installed yet</span>\n';
+  html += dbgSection('UPDATE HISTORY', s7);
+
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.4</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
