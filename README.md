@@ -1,4 +1,4 @@
-<h1><img src="logo.png" height="30" align="top" alt=""> Module Update Checker</h1>
+<h1><img src="logo.png" height="38" align="center" alt=""> Module Update Checker</h1>
 
 ### Track, check, and update your KernelSU / Magisk / APatch modules — all from one WebUI.
 
