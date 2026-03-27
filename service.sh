@@ -348,10 +348,11 @@ if [ -d "$APP_DIR" ]; then
     CMD_DIR="$APP_DIR/muc_cmd"
     RES_DIR="$APP_DIR/muc_res"
     mkdir -p "$CMD_DIR" "$RES_DIR"
+    # Get app's SELinux context for proper file labeling
+    APP_CTX=$(ls -Zd "$APP_DIR" 2>/dev/null | grep -o 'u:[^ ]*')
     chmod 777 "$CMD_DIR" "$RES_DIR" 2>/dev/null
-    # Fix SELinux context to match app's context
-    chcon -R $(ls -Zd "$APP_DIR" | cut -d' ' -f1) "$CMD_DIR" "$RES_DIR" 2>/dev/null
-    log "IPC dirs ready"
+    chcon "$APP_CTX" "$CMD_DIR" "$RES_DIR" 2>/dev/null
+    log "IPC dirs ready, SELinux ctx: $APP_CTX"
 
     # Exec daemon — reads commands from app, executes as root, writes results
     while true; do
@@ -363,7 +364,10 @@ if [ -d "$APP_DIR" ]; then
             if [ -n "$cmd" ]; then
                 result=$(sh -c "$cmd" 2>&1)
                 echo "$result" > "$RES_DIR/$id"
+                # Set permissions AND SELinux context so app can read
                 chmod 666 "$RES_DIR/$id" 2>/dev/null
+                chown $(stat -c %u "$APP_DIR") "$RES_DIR/$id" 2>/dev/null
+                chcon "$APP_CTX" "$RES_DIR/$id" 2>/dev/null
             fi
         done
         sleep 0.1
