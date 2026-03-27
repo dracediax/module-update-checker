@@ -14,11 +14,11 @@
 - **Auto-discovery** — finds all installed modules, no manual setup
 - **One-tap updates** — download, install, or update all at once
 - **Notifications** — get notified when modules have updates available, on boot and every 24h
-- **Standalone app** — notification tap and home screen shortcut open MUC directly ([details](#standalone-app))
+- **Standalone app** — notification tap and home screen shortcut open MUC directly ([see features](#standalone-app) | [hide from root detectors](#hiding-from-root-detectors))
 - **Nightly builds** — detects CI/nightly builds from GitHub Actions ([requires token](#github-token))
 - **Background checks** — configurable: every boot, daily, or manual only
 - **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
-- **Minimal battery usage** — no persistent services or wake locks ([details](#battery--performance))
+- **Minimal battery usage** — no persistent services or wake locks ([see Battery & Performance](#battery--performance))
 
 ---
 
@@ -139,7 +139,7 @@ A personal access token is **optional** but unlocks additional features:
 
 **Companion app** (~58KB) — Standalone WebView that loads the module's WebUI directly. Communicates with the root daemon via file-based IPC — no Superuser permission needed. Also handles notifications and home screen shortcuts.
 
-**Data** — Config, cache, token, and settings stored at `/data/adb/` so they persist across module updates.
+**Data** — Config, cache, token, and settings stored at `/data/adb/muc/` so they persist across module updates.
 
 </details>
 
