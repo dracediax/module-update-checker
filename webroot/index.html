@@ -208,7 +208,8 @@
 <p class="subtitle" style="margin:0">Track your KSU modules for GitHub updates</p></div>
 </div>
 
-<div class="section-label">Installed Modules</div>
+<div class="section-label">Installed Modules <span id="load-status" style="color:#666;font-size:11px;text-transform:none;letter-spacing:0"></span></div>
+<div class="progress-wrap" id="load-progress" style="display:none;margin-bottom:8px"><div class="progress-bar" id="load-bar"></div></div>
 <div id="modules-list"><div class="loading">Loading modules...</div></div>
 
 <button class="btn-update-all" id="update-all-btn" onclick="updateAll()">Update All</button>
@@ -447,93 +448,133 @@ function discoverModules() {
 
 function loadModules() {
   var moduleDirs = discoverModules();
-  var seen = {}; // deduplicate by module id
+  var seen = {};
+  var list = document.getElementById('modules-list');
+  var loadStatus = document.getElementById('load-status');
+  var loadProgress = document.getElementById('load-progress');
+  var loadBar = document.getElementById('load-bar');
 
   modules = [];
-  for (var i = 0; i < moduleDirs.length; i++) {
-    var fullPath = moduleDirs[i];
-    var dir = fullPath.split('/').pop();
-    var propFile = fullPath + '/module.prop';
+  list.innerHTML = '';
+  loadProgress.style.display = 'block';
+  loadStatus.textContent = 'discovering...';
 
-    var id = grepProp(propFile, 'id') || dir;
-
-    // Deduplicate: keep the one under /data/adb/modules/ if both exist
-    if (seen[id]) {
-      // Prefer the /data/adb/modules/ path
-      if (fullPath.indexOf('/data/adb/modules/') === 0) {
-        // Replace the previous entry
-        for (var r = 0; r < modules.length; r++) {
-          if (modules[r].id === id) { modules.splice(r, 1); break; }
-        }
-      } else {
-        continue; // skip this duplicate
-      }
-    }
-    seen[id] = true;
-
-    var name = grepProp(propFile, 'name') || dir;
-    var version = grepProp(propFile, 'version') || '?';
-    var versionCode = grepProp(propFile, 'versionCode') || '0';
-
-    modules.push({
-      id: id, name: name, version: version,
-      versionCode: parseInt(versionCode) || 0, dir: dir,
-      fullPath: fullPath
-    });
-  }
-
+  // Load config first (single exec call)
   var configRaw = exec('cat ' + CONFIG_PATH);
   try { config = JSON.parse(configRaw); } catch(e) { config = []; }
   if (!Array.isArray(config)) config = [];
 
-  renderModules();
-  loadCachedUpdates();
-}
+  var total = moduleDirs.length;
+  var idx = 0;
 
-function renderModules() {
-  var list = document.getElementById('modules-list');
-  list.innerHTML = '';
-
-  if (modules.length === 0) {
-    list.innerHTML = '<div class="loading">No modules found</div>';
-    return;
-  }
-
-  for (var i = 0; i < modules.length; i++) {
-    var mod = modules[i];
-    var saved = null;
-    for (var j = 0; j < config.length; j++) {
-      if (config[j].id === mod.id) { saved = config[j]; break; }
+  function loadNext() {
+    if (idx >= total) {
+      loadProgress.style.display = 'none';
+      loadStatus.textContent = '';
+      if (modules.length === 0) {
+        list.innerHTML = '<div class="loading">No modules found</div>';
+      }
+      loadCachedUpdates();
+      return;
     }
-    var tracked = !!saved;
-    // Always re-resolve by name — catches module changes (e.g. TrickyStore → TEESimulator-RS)
-    var nameResolved = resolveRepo(mod.id, mod.name, mod.dir);
-    var repo = saved ? (nameResolved || saved.repo) : nameResolved;
-    var ignoreCi = saved ? (saved.ignoreCi || false) : false;
 
-    var card = document.createElement('div');
-    card.className = 'module-card' + (tracked ? ' tracked' : '');
-    card.innerHTML =
-      '<div class="module-info">' +
-        '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
-        '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
-          ' <span id="upd-' + escapeAttr(mod.id) + '"></span></div>' +
-        '<div class="module-repo">' +
-          '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
-                 'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input">' +
-        '</div>' +
-        (ghToken ? '<div style="margin-top:4px"><label style="font-size:11px;color:#666;cursor:pointer">' +
-          '<input type="checkbox" ' + (ignoreCi ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-ignore" style="width:14px;height:14px;vertical-align:middle;margin-right:4px">' +
-          'Mute CI notifications</label></div>' : '') +
-      '</div>' +
-      '<label class="toggle">' +
-        '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
-               'onchange="this.closest(\'.module-card\').classList.toggle(\'tracked\', this.checked)">' +
-        '<span class="slider"></span>' +
-      '</label>';
-    list.appendChild(card);
+    var fullPath = moduleDirs[idx];
+    var dir = fullPath.split('/').pop();
+    var propFile = fullPath + '/module.prop';
+
+    // Read all props in one exec call
+    var propsRaw = exec("grep -E '^(id|name|version|versionCode)=' " + propFile + " 2>/dev/null | tr '\\n' '|'");
+    var props = {};
+    if (propsRaw) {
+      var parts = propsRaw.split('|');
+      for (var p = 0; p < parts.length; p++) {
+        var eq = parts[p].indexOf('=');
+        if (eq > 0) props[parts[p].substring(0, eq)] = parts[p].substring(eq + 1).trim();
+      }
+    }
+
+    var id = props.id || dir;
+    var name = props.name || dir;
+    var version = props.version || '?';
+    var versionCode = props.versionCode || '0';
+
+    // Update progress
+    var pct = Math.round(((idx + 1) / total) * 100);
+    loadBar.style.width = pct + '%';
+    loadStatus.textContent = name + ' (' + (idx + 1) + '/' + total + ')';
+
+    // Deduplicate
+    if (seen[id]) {
+      if (fullPath.indexOf('/data/adb/modules/') === 0) {
+        for (var r = 0; r < modules.length; r++) {
+          if (modules[r].id === id) {
+            modules.splice(r, 1);
+            // Remove the old card
+            var oldCard = document.getElementById('card-' + id);
+            if (oldCard) oldCard.remove();
+            break;
+          }
+        }
+      } else {
+        idx++;
+        setTimeout(loadNext, 5);
+        return;
+      }
+    }
+    seen[id] = true;
+
+    var mod = {
+      id: id, name: name, version: version,
+      versionCode: parseInt(versionCode) || 0, dir: dir,
+      fullPath: fullPath
+    };
+    modules.push(mod);
+
+    // Render this module card immediately
+    renderModuleCard(mod, list);
+
+    idx++;
+    setTimeout(loadNext, 5);
   }
+
+  loadNext();
 }
+
+function renderModuleCard(mod, list) {
+  var saved = null;
+  for (var j = 0; j < config.length; j++) {
+    if (config[j].id === mod.id) { saved = config[j]; break; }
+  }
+  var tracked = !!saved;
+  var nameResolved = resolveRepo(mod.id, mod.name, mod.dir);
+  var repo = saved ? (nameResolved || saved.repo) : nameResolved;
+  var ignoreCi = saved ? (saved.ignoreCi || false) : false;
+
+  var card = document.createElement('div');
+  card.className = 'module-card' + (tracked ? ' tracked' : '');
+  card.id = 'card-' + mod.id;
+  card.innerHTML =
+    '<div class="module-info">' +
+      '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
+      '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
+        ' <span id="upd-' + escapeAttr(mod.id) + '"></span></div>' +
+      '<div class="module-repo">' +
+        '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
+               'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input">' +
+      '</div>' +
+      (ghToken ? '<div style="margin-top:4px"><label style="font-size:11px;color:#666;cursor:pointer">' +
+        '<input type="checkbox" ' + (ignoreCi ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-ignore" style="width:14px;height:14px;vertical-align:middle;margin-right:4px">' +
+        'Mute CI notifications</label></div>' : '') +
+    '</div>' +
+    '<label class="toggle">' +
+      '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
+             'onchange="this.closest(\'.module-card\').classList.toggle(\'tracked\', this.checked)">' +
+      '<span class="slider"></span>' +
+    '</label>';
+  list.appendChild(card);
+}
+
+// renderModules removed — replaced by progressive renderModuleCard() in loadModules()
 
 function loadCachedUpdates() {
   // Read cache written by service.sh: each line is mod_id|latest|asset_url
@@ -1265,7 +1306,7 @@ function showDebug() {
   }
   html += dbgSection('SHORTCUT DEBUG', s6);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.4.5</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.0</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
