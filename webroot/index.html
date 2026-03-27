@@ -1131,9 +1131,10 @@ function updateModule(modId, assetUrl, btn) {
         btn.textContent = '\u2713 ' + modName + ' — Installed';
         btn.className = 'btn-update done';
         if (statusEl) {
-          statusEl.innerHTML = '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">' +
-            '<button style="background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback</button>' +
-            '<button style="background:var(--bg3);color:var(--red);border:1px solid var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;opacity:0.7" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715</button></div>';
+          statusEl.innerHTML = '<div style="margin-top:4px;font-size:11px">' +
+            '<a style="color:var(--accent);cursor:pointer;text-decoration:none" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 rollback</a>' +
+            ' <span style="color:var(--fg5)">\u00b7</span> ' +
+            '<a style="color:var(--fg5);cursor:pointer;text-decoration:none;opacity:0.6" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">remove backup</a></div>';
         }
 
         exec("grep -v '^" + modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
@@ -1787,9 +1788,10 @@ function loadRollbackButtons() {
         if (modules[m].id === modId) { installedVer = modules[m].version; break; }
       }
       if (backupVer && normalizeVersion(backupVer) !== normalizeVersion(installedVer)) {
-        statusEl.innerHTML = '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">' +
-          '<button style="background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback to ' + escapeHtml(backupVer) + '</button>' +
-          '<button style="background:var(--bg3);color:var(--red);border:1px solid var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;opacity:0.7" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715</button>' +
+        statusEl.innerHTML = '<div style="margin-top:4px;font-size:11px">' +
+          '<a style="color:var(--accent);cursor:pointer;text-decoration:none" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 rollback to ' + escapeHtml(backupVer) + '</a>' +
+          ' <span style="color:var(--fg5)">\u00b7</span> ' +
+          '<a style="color:var(--fg5);cursor:pointer;text-decoration:none;opacity:0.6" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">remove backup</a>' +
           '</div>';
       }
     }
