@@ -18,6 +18,7 @@
 - **Nightly builds** — detects CI/nightly builds from GitHub Actions ([requires token](#github-token))
 - **Background checks** — configurable: every boot, daily, or manual only
 - **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
+- **Minimal battery usage** — no persistent services or wake locks ([details](#battery--performance))
 
 ---
 
