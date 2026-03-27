@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="120" alt="Module Update Checker">
+</p>
+
 # Module Update Checker
 
 ### Track, check, and update your KernelSU / Magisk / APatch modules — all from one WebUI.
@@ -17,13 +21,15 @@
 | Auto-discovery | Finds all installed modules automatically |
 | GitHub tracking | Checks releases + CI builds for newer versions |
 | One-tap update | Download and install directly from the WebUI |
-| Notifications | Branded alerts on boot and every 24 hours |
+| Update All | Single button to update all modules at once |
+| Semantic versioning | Proper numeric comparison (handles rc tags, multi-part versions) |
+| Notifications | Branded alerts with custom icon on boot and every 24h |
+| Notification tap | Opens KSU Manager on tap |
 | Instant results | Background checks cached — WebUI loads instantly |
 | CI builds | Detects nightly builds from GitHub Actions (with token) |
+| CI artifact install | Unwraps and installs CI artifacts directly |
 | Smart muting | Per-module CI notification control |
 | Progress bar | Live per-module progress during checks |
-
-> **WIP:** Tap-to-open notifications and home screen shortcut — [see details](#wip-features)
 
 ---
 
@@ -42,14 +48,16 @@ That's it. Updates are checked on boot and every 24 hours automatically.
 
 ### Compatibility
 
-| Manager | Support |
-|---------|---------|
-| KernelSU Next | Full |
-| KernelSU | Full |
-| KsuWebUI (standalone) | Full |
-| Magisk + KsuWebUI | Full |
-| APatch + KsuWebUI | Full |
-| Magisk (no WebUI) | Background only |
+| Manager | WebUI | Background Checks | Notifications | Update Install |
+|---------|-------|-------------------|---------------|---------------|
+| KernelSU Next | Full | Full | Full | Full |
+| KernelSU | Full | Full | Full | Full |
+| KsuWebUI (standalone) | Full | Full | Full | Full |
+| Magisk + KsuWebUI | Full | Full | Full | Full |
+| APatch + KsuWebUI | Full | Full | Full | Full |
+| Magisk (no WebUI) | N/A | Full | Full | N/A |
+
+**WebUI APIs supported:** `ksu.exec()`, `ksuwebui.exec()` — works across KernelSU, KSU Next, and KsuWebUI standalone.
 
 ---
 
@@ -77,7 +85,7 @@ Auto-detected — just toggle them on:
 | NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) | |
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) | |
 | DM-Verity Props Spoof | [dracediax/dmverity-props-spoof](https://github.com/dracediax/dmverity-props-spoof) | |
-| Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) | |
+| Module Update Checker | [dracediax/module-update-checker](https://github.com/dracediax/module-update-checker) | Self-updating |
 | Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) | |
 | Wireless ADB | [dracediax/wireless-adb](https://github.com/dracediax/wireless-adb) | |
 
@@ -87,13 +95,18 @@ Enter any `owner/repo` manually for modules not listed.
 
 ---
 
-### WIP Features
+### Companion APK
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Tap notification to open WebUI | Companion APK installed, notifications branded | KSU Next intent targeting WIP |
-| Home screen shortcut | ShortcutManager integrated | Same intent issue |
-| Custom notification icon | System default used | Needs bundled icon |
+A lightweight companion app (16KB) is bundled and auto-installed on boot for enhanced notifications:
+
+| Feature | Status |
+|---------|--------|
+| Branded notifications | "Module Update Checker" sender name |
+| Custom notification icon | MUC logo icon |
+| Tap notification | Opens KSU Manager |
+| Home screen shortcut | WIP — ShortcutManager integration |
+
+The module works fully without the companion app — falls back to shell notifications.
 
 ---
 
@@ -126,9 +139,9 @@ Enter any `owner/repo` manually for modules not listed.
 
 **WebUI** — `ksu.exec()` runs shell commands: `find` for discovery, `curl` for GitHub API, `ksud module install` for updates.
 
-**service.sh** — Checks on boot + every 24h. Caches results. Installs companion APK. Sends branded notifications.
+**service.sh** — Checks on boot + every 24h. Caches results. Installs/updates companion APK. Sends branded notifications.
 
-**Companion APK** (12KB) — BroadcastReceiver for notifications via `am broadcast`. No launcher icon, no services.
+**Companion APK** (16KB) — BroadcastReceiver for notifications via `am broadcast`. No launcher icon, no services.
 
 **Data files** — All at `/data/adb/` (persist across updates): config, cache, token, settings, stats.
 
@@ -139,9 +152,9 @@ Enter any `owner/repo` manually for modules not listed.
 
 - `exec()` returns first line only — all commands use `grep`/`tr` workarounds
 - SUSFS reports kernel version, not module version
-- String-based version comparison (no semantic ordering)
 - CI artifacts require GitHub token
 - Update button needs `.zip` release asset
+- KSU Next WebUI activity is not exported — can't deep-link notification tap to module page
 
 </details>
 
