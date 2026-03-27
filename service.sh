@@ -328,6 +328,35 @@ if should_check; then
     check_updates
 fi
 
+# Exec daemon — handles root commands from companion app
+# App writes command to CMD_DIR/<id>, daemon executes and writes result to RES_DIR/<id>
+CMD_DIR="/data/local/tmp/muc_cmd"
+RES_DIR="/data/local/tmp/muc_res"
+mkdir -p "$CMD_DIR" "$RES_DIR"
+chmod 777 "$CMD_DIR" "$RES_DIR"
+
+exec_daemon() {
+    log "exec daemon started"
+    while true; do
+        for cmd_file in "$CMD_DIR"/*; do
+            [ -f "$cmd_file" ] || continue
+            local id=$(basename "$cmd_file")
+            local cmd=$(cat "$cmd_file" 2>/dev/null)
+            rm -f "$cmd_file"
+            if [ -n "$cmd" ]; then
+                local result=$(eval "$cmd" 2>&1)
+                echo "$result" > "$RES_DIR/$id"
+                chmod 666 "$RES_DIR/$id"
+            fi
+        done
+        sleep 0.05
+    done
+}
+
+# Start exec daemon in background
+exec_daemon &
+log "exec daemon PID: $!"
+
 # Main loop: poll trigger file every 60s, auto-check every 24h
 last_check=$(date +%s)
 log "entering main loop"
