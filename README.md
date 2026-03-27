@@ -175,6 +175,20 @@ HMA-OSS hides the app from package manager queries — root detectors won't know
 
 ---
 
+### Planned Features
+
+These features are on the roadmap. If you'd like to see one prioritized, [open an issue](https://github.com/dracediax/module-update-checker/issues).
+
+| Feature | Description |
+|---------|-------------|
+| Auto-update mode | Download and install updates automatically without user interaction |
+| Custom notification sound | Configurable alert sound for update notifications |
+| Randomized package name | Generate random APK package name at flash time to avoid root detection without HMA |
+| Magisk terminal setup | `setup.sh` for configuring tracked modules without WebUI |
+| Update history | Log of what was updated and when |
+
+---
+
 ### License
 
 MIT
