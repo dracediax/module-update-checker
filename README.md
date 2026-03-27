@@ -136,7 +136,7 @@ A personal access token is **optional** but unlocks additional features:
 
 **service.sh** — Background daemon that checks on boot + every 24h, caches results, installs the companion app, sends notifications, and runs a root IPC handler for the standalone app.
 
-**Companion app** (~60KB) — Standalone WebView that loads the module's WebUI directly. Communicates with the root daemon via file-based IPC — no Superuser permission needed. Also handles notifications and home screen shortcuts.
+**Companion app** (~58KB) — Standalone WebView that loads the module's WebUI directly. Communicates with the root daemon via file-based IPC — no Superuser permission needed. Also handles notifications and home screen shortcuts.
 
 **Data** — Config, cache, token, and settings stored at `/data/adb/` so they persist across module updates.
 
@@ -145,7 +145,7 @@ A personal access token is **optional** but unlocks additional features:
 <details>
 <summary><b>Battery & Performance</b></summary>
 
-**Negligible.** One network burst on boot, then idle. No persistent services or wake locks. The IPC daemon uses <1% CPU (50ms poll interval, no-op when idle).
+**Negligible.** One network burst on boot, then idle. No persistent services or wake locks. The IPC daemon uses <1% CPU (20ms poll interval, no-op when idle).
 
 </details>
 
