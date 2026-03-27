@@ -370,7 +370,7 @@ if [ -d "$APP_DIR" ]; then
                 chcon "$APP_CTX" "$RES_DIR/$id" 2>/dev/null
             fi
         done
-        sleep 0.1
+        sleep 0.02
     done &
     log "exec daemon PID: $!"
 else
