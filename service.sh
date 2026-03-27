@@ -330,10 +330,16 @@ fi
 
 # Exec daemon — handles root commands from companion app
 # App writes command to CMD_DIR/<id>, daemon executes and writes result to RES_DIR/<id>
-CMD_DIR="/data/local/tmp/muc_cmd"
-RES_DIR="/data/local/tmp/muc_res"
+# Wait for companion app data dir to exist (created after pm install)
+for i in $(seq 1 30); do
+    [ -d "/data/data/com.dracediax.muc" ] && break
+    sleep 1
+done
+CMD_DIR="/data/data/com.dracediax.muc/muc_cmd"
+RES_DIR="/data/data/com.dracediax.muc/muc_res"
 mkdir -p "$CMD_DIR" "$RES_DIR"
 chmod 777 "$CMD_DIR" "$RES_DIR"
+log "exec IPC dirs ready: $CMD_DIR"
 
 exec_daemon() {
     log "exec daemon started"
