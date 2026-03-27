@@ -19,6 +19,10 @@
 - **Background checks** — configurable: every boot, daily, or manual only
 - **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
 - **Minimal battery usage** — no persistent services or wake locks ([see Battery & Performance](#battery--performance))
+- **Changelog viewer** — view release notes before updating
+- **Update history** — log of all installed updates (Debug > Update History)
+
+> **Found a bug?** Enable the debug menu in Settings > Advanced, then tap "Copy Bug Report for GitHub" — it generates a pre-filled report with device info, service log, and module state. [Open an issue](https://github.com/dracediax/module-update-checker/issues/new) and paste it.
 
 ---
 
@@ -170,6 +174,34 @@ The standalone companion app (`com.dracediax.muc`) is visible in the package lis
 3. Select which apps should not see it (e.g. banking apps, games with root detection)
 
 HMA-OSS hides the app from package manager queries — root detectors won't know it's installed. The module itself (`module-update-checker` in `/data/adb/modules/`) should be handled separately via SUSFS or similar.
+
+</details>
+
+<details>
+<summary><b>Troubleshooting</b></summary>
+
+**Standalone app shows blank/loading screen:**
+- Reboot — service.sh needs to copy the WebUI and start the IPC daemon
+- If it persists after reboot, check: `adb shell su -c "cat /data/adb/modules/module-update-checker/service.log"`
+
+**No notifications after boot:**
+- Check boot mode in Settings (might be set to "Manual only")
+- Check service.log for errors
+- If companion app is disabled, notifications come through shell ("Shell" sender)
+
+**Updates not detected:**
+- Make sure the module is toggled on AND saved
+- Check API usage in Settings — you might be rate-limited (60/hr without token)
+- Some modules (SUSFS) report kernel version, not module version
+
+**How to file a bug report:**
+1. Open the WebUI (KSU Manager or standalone app)
+2. Go to Settings > Advanced > Enable debug menu
+3. Press "Show Debug Info" at the bottom
+4. Press "Copy Bug Report for GitHub"
+5. [Open an issue](https://github.com/dracediax/module-update-checker/issues/new) and paste it
+
+The report includes: device model, Android version, root method, module count, companion app status, and the last 15 lines of service.log.
 
 </details>
 
