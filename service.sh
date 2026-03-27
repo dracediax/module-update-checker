@@ -298,7 +298,8 @@ check_updates() {
             local mod_name=$(grep '^name=' "/data/adb/modules/${mod_id}/module.prop" 2>/dev/null | cut -d= -f2)
             [ -z "$mod_name" ] && mod_name="$mod_id"
             if [ -n "$update_names" ]; then
-                update_names="${update_names}, ${mod_name}: ${latest}"
+                update_names="${update_names}
+${mod_name}: ${latest}"
             else
                 update_names="${mod_name}: ${latest}"
             fi
