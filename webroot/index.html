@@ -15,14 +15,18 @@
     --warn: #d29922; --warn-bg: #2a2a1a; --update-bg: #4a3a1a; --update-fg: #ffaa33;
   }
   .light {
-    --bg: #f5f5f7; --bg2: #fff; --bg3: #eee; --bg4: #f0f0f0;
-    --fg: #333; --fg2: #111; --fg3: #444; --fg4: #888; --fg5: #aaa;
-    --accent: #3355aa; --accent2: #2244aa; --accent3: #e8eef8;
-    --border: #ccd; --border2: #ddd; --border3: #ddd;
-    --card: #fff; --card-tracked: #eef2fa;
-    --green: #2a8a2a; --green2: #1a7a1a; --red: #cc4444;
-    --warn: #b88800; --warn-bg: #fff8e0; --update-bg: #fff3e0; --update-fg: #cc7700;
+    --bg: #f0f2f5; --bg2: #fff; --bg3: #e8eaed; --bg4: #f5f5f5;
+    --fg: #1a1a1a; --fg2: #000; --fg3: #333; --fg4: #666; --fg5: #999;
+    --accent: #2255cc; --accent2: #1a44bb; --accent3: #e4ecf7;
+    --border: #c0c8d8; --border2: #d0d4da; --border3: #ddd;
+    --card: #fff; --card-tracked: #eaf0fa;
+    --green: #1a7a1a; --green2: #0a6a0a; --red: #cc3333;
+    --warn: #996600; --warn-bg: #fff8e0; --update-bg: #fff0d8; --update-fg: #b86e00;
   }
+  .light .btn { color: #fff; }
+  .light .btn-check { color: #fff; }
+  .light .settings-toggle { color: var(--fg2); }
+  .light .setting-row select { color: var(--fg); background: var(--bg3); }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, system-ui, sans-serif;
@@ -46,6 +50,11 @@
   }
   .module-card.tracked { background: var(--card-tracked); border-color: var(--border); }
   .module-card.hidden { display: none; }
+  .module-options { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .module-options label { font-size: 11px; color: var(--fg5); cursor: pointer; display: flex; align-items: center; gap: 3px; }
+  .module-options label.disabled { opacity: 0.35; pointer-events: none; }
+  .module-options input { width: 14px; height: 14px; vertical-align: middle; }
+  .ci-version { color: #dd8800; font-size: 11px; font-weight: 600; }
   .module-info { flex: 1; min-width: 0; }
   .module-name {
     font-size: 15px; font-weight: 500; color: var(--fg2);
@@ -549,6 +558,7 @@ function loadModules() {
         list.innerHTML = '<div class="loading">No modules found</div>';
       }
       loadCachedUpdates();
+      loadRollbackButtons();
       return;
     }
 
@@ -638,24 +648,36 @@ function renderModuleCard(mod, list) {
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
                'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input">' +
       '</div>' +
-      '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:8px">' +
-        '<label style="font-size:11px;color:var(--fg5);cursor:pointer">' +
-          '<input type="checkbox" ' + (preRelease ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="pre-release" style="width:14px;height:14px;vertical-align:middle;margin-right:3px">' +
+      '<div class="module-options">' +
+        '<span style="font-size:11px;color:var(--fg5)">Include:</span>' +
+        '<label class="' + (tracked ? '' : 'disabled') + '">' +
+          '<input type="checkbox" ' + (preRelease ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="pre-release"' + (tracked ? '' : ' disabled') + '>' +
           'Pre-releases</label>' +
-        (ghToken ? '<label style="font-size:11px;color:var(--fg5);cursor:pointer">' +
-          '<input type="checkbox" ' + (ignoreCi ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-ignore" style="width:14px;height:14px;vertical-align:middle;margin-right:3px">' +
-          'Mute CI</label>' : '') +
+        (ghToken ? '<label class="' + (tracked ? '' : 'disabled') + '">' +
+          '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-include"' + (tracked ? '' : ' disabled') + '>' +
+          'CI builds</label>' : '') +
       '</div>' +
     '</div>' +
     '<label class="toggle">' +
       '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
-             'onchange="this.closest(\'.module-card\').classList.toggle(\'tracked\', this.checked)">' +
+             'onchange="toggleTracked(this)">' +
       '<span class="slider"></span>' +
     '</label>';
   list.appendChild(card);
 }
 
-// renderModules removed — replaced by progressive renderModuleCard() in loadModules()
+function toggleTracked(el) {
+  var card = el.closest('.module-card');
+  var tracked = el.checked;
+  card.classList.toggle('tracked', tracked);
+  // Enable/disable options
+  var opts = card.querySelectorAll('.module-options label');
+  for (var i = 0; i < opts.length; i++) {
+    opts[i].className = tracked ? '' : 'disabled';
+    var inp = opts[i].querySelector('input');
+    if (inp) inp.disabled = !tracked;
+  }
+}
 
 function loadCachedUpdates() {
   // Read cache written by service.sh: each line is mod_id|latest|asset_url
@@ -714,10 +736,10 @@ function saveConfig() {
   for (var i = 0; i < toggles.length; i++) {
     var id = toggles[i].getAttribute('data-id');
     var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
-    var ciBox = document.querySelector('.ci-ignore[data-id="' + id + '"]');
+    var ciBox = document.querySelector('.ci-include[data-id="' + id + '"]');
     var preBox = document.querySelector('.pre-release[data-id="' + id + '"]');
     var repo = inp ? inp.value.trim() : '';
-    var ignoreCi = ciBox ? ciBox.checked : false;
+    var ignoreCi = ciBox ? !ciBox.checked : false;
     var preRelease = preBox ? preBox.checked : false;
     if (repo) newConfig.push({ id: id, repo: repo, ignoreCi: ignoreCi, preRelease: preRelease });
   }
@@ -787,10 +809,10 @@ function checkNow() {
   for (var i = 0; i < toggles.length; i++) {
     var id = toggles[i].getAttribute('data-id');
     var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
-    var ciBox = document.querySelector('.ci-ignore[data-id="' + id + '"]');
+    var ciBox = document.querySelector('.ci-include[data-id="' + id + '"]');
     var preBox = document.querySelector('.pre-release[data-id="' + id + '"]');
     var repo = inp ? inp.value.trim() : '';
-    var ignoreCi = ciBox ? ciBox.checked : false;
+    var ignoreCi = ciBox ? !ciBox.checked : false;
     var preRelease = preBox ? preBox.checked : false;
     if (repo) tracked.push({ id: id, repo: repo, ignoreCi: ignoreCi, preRelease: preRelease });
   }
@@ -932,7 +954,7 @@ function checkNow() {
 
     // Show CI info only if not muted
     if (hasCiUpdate && !ciMuted) {
-      badgeHtml += '<div style="margin-top:6px"><span style="color:#888;font-size:11px">CI: ' + escapeHtml(ciLatest) + '</span>';
+      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span>';
       if (ciAsset && ghToken) {
         badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken && isCiOnly) {
@@ -1155,7 +1177,7 @@ function showUpdateAllButton() {
   var btn = document.getElementById('update-all-btn');
   if (count >= 1) {
     btn.style.display = 'block';
-    btn.textContent = '\u2191 Update All (' + count + (count === 1 ? ' module' : ' modules') + ')';
+    btn.textContent = '\u2191 Update (' + count + ') — tap to select';
     btn.disabled = false;
   } else {
     btn.style.display = 'none';
@@ -1738,6 +1760,26 @@ function updateSelected() {
 function backupModule(modId) {
   exec("mkdir -p /data/adb/muc/backups && cp /data/adb/modules/" + modId + "/module.prop /data/adb/muc/backups/" + modId + ".prop 2>/dev/null");
   exec("cd /data/adb/modules/" + modId + " && zip -r -0 /data/adb/muc/backups/" + modId + ".zip . 2>/dev/null");
+}
+
+function loadRollbackButtons() {
+  // Check which modules have backups and show rollback link
+  var backupList = exec("ls /data/adb/muc/backups/*.zip 2>/dev/null | tr '\\n' '|'");
+  if (!backupList) return;
+  var backups = backupList.split('|');
+  for (var i = 0; i < backups.length; i++) {
+    var path = backups[i].trim();
+    if (!path) continue;
+    var modId = path.replace(/.*\//, '').replace('.zip', '');
+    var statusEl = document.getElementById('upd-status-' + modId);
+    if (statusEl && !statusEl.innerHTML) {
+      // Read backup version
+      var backupVer = exec("unzip -p /data/adb/muc/backups/" + modId + ".zip module.prop 2>/dev/null | grep '^version=' | cut -d= -f2 | tr -d '\\n'");
+      if (backupVer) {
+        statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback to ' + escapeHtml(backupVer) + '</button>';
+      }
+    }
+  }
 }
 
 function rollbackModule(modId, btn) {
