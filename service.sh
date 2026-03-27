@@ -170,7 +170,9 @@ send_notification() {
         local ksu_pkg=$(cat $KSU_PKG_FILE 2>/dev/null)
         local ksu_arg=""
         [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
-        local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" $ksu_arg 2>&1)
+        local notif_text="$text
+Tap to view"
+        local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$notif_text" $ksu_arg 2>&1)
         log "companion app: $result"
         sent=1
     fi
@@ -179,6 +181,7 @@ send_notification() {
     if [ "$sent" = "0" ]; then
         log "companion not installed, using shell notification"
         local shell_text=$(echo "$text" | tr '\n' '|' | sed 's/|/ | /g')
+        shell_text="$shell_text | Open WebUI to view"
         local result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$shell_text'" 2>&1)
         log "shell notification: $result"
     fi
