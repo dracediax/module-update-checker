@@ -1216,40 +1216,57 @@ function showDebug() {
   var pkg = ksuPackage || exec("cat /data/adb/muc_ksu_package 2>/dev/null").trim();
   s5 += dbgLine('ksu package', pkg || '(not detected)', pkg ? 'dbg-ok' : 'dbg-err');
   if (pkg) {
-    // Check companion APK installed
     var companionPath = exec("pm path com.dracediax.muc 2>/dev/null | tr -d '\\n'");
     s5 += dbgLine('companion APK', companionPath || '(not installed)', companionPath ? 'dbg-ok' : 'dbg-err');
 
-    // Check QUERY_ALL_PACKAGES
     var perms = exec("dumpsys package com.dracediax.muc 2>/dev/null | grep QUERY_ALL | head -1 | tr -d '\\n'");
     s5 += dbgLine('QUERY_ALL_PACKAGES', perms || '(not found)', perms ? 'dbg-ok' : 'dbg-err');
 
-    // List exported activities of KSU Manager
-    var activities = exec("dumpsys package " + pkg + " 2>/dev/null | grep -A1 'Activity.*exported=true' | grep -o '" + pkg + "[^\"]*' | tr '\\n' '|'");
+    // All activities of KSU Manager (not just exported)
+    var activities = exec("dumpsys package " + pkg + " 2>/dev/null | grep '" + pkg + "/' | grep -i activity | tr '\\n' '|'");
     if (activities) {
       var actList = activities.split('|');
       for (var ai = 0; ai < actList.length; ai++) {
-        if (actList[ai].trim()) {
-          s5 += dbgLine('exported activity', actList[ai].trim(), 'dbg-dim');
-        }
+        var act = actList[ai].trim();
+        if (act) s5 += dbgLine('activity', act, act.indexOf('exported=true') !== -1 ? 'dbg-ok' : 'dbg-dim');
       }
-    } else {
-      s5 += dbgLine('exported activities', '(none found or dumpsys failed)', 'dbg-warn');
+    }
+    // Also try listing activity class names directly
+    var actNames = exec("cmd package dump " + pkg + " 2>/dev/null | grep 'Activity.*' | grep -o '" + pkg + "[^ ]*' | sort -u | tr '\\n' '|'");
+    if (!activities && !actNames) {
+      s5 += dbgLine('activities', '(dumpsys failed)', 'dbg-warn');
+    } else if (actNames) {
+      var nameList = actNames.split('|');
+      for (var ni = 0; ni < nameList.length; ni++) {
+        if (nameList[ni].trim()) s5 += dbgLine('class', nameList[ni].trim(), 'dbg-dim');
+      }
     }
 
-    // Check launcher intent
     var launcherActivity = exec("cmd package resolve-activity --brief " + pkg + " 2>/dev/null | tail -1 | tr -d '\\n'");
     s5 += dbgLine('launcher activity', launcherActivity || '(not resolved)', launcherActivity ? 'dbg-ok' : 'dbg-warn');
 
-    // SharedPreferences status
-    var prefsFile = exec("ls /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
+    // SharedPreferences
     var prefsKsu = exec("grep ksu_package /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
-    s5 += dbgLine('prefs file', prefsFile ? 'exists' : 'missing', prefsFile ? 'dbg-ok' : 'dbg-warn');
     s5 += dbgLine('prefs ksu_package', prefsKsu || '(not set)', prefsKsu ? 'dbg-ok' : 'dbg-warn');
   }
   html += dbgSection('KSU INTENT DEBUG', s5);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3.2</div>' + html + '</div>';
+  // Section 6: Shortcut Debug
+  var s6 = '';
+  var shortcutRes = exec("grep shortcut_result /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | tr -d '\\n'");
+  s6 += dbgLine('last result', shortcutRes || '(none)', shortcutRes ? (shortcutRes.indexOf('ok|') !== -1 ? 'dbg-ok' : 'dbg-warn') : 'dbg-dim');
+  // Check shortcut logs
+  for (var si = 0; si < debugLog.length; si++) {
+    if (debugLog[si].shortcut) {
+      s6 += dbgLine(debugLog[si].shortcut, debugLog[si].result || '(empty)', 'dbg-dim');
+    }
+  }
+  if (s6.indexOf('shortcut') === -1 && !shortcutRes) {
+    s6 += '<span class="dbg-dim">No shortcut attempts yet</span>\n';
+  }
+  html += dbgSection('SHORTCUT DEBUG', s6);
+
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.3.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1409,29 +1426,28 @@ function addShortcut() {
   feedbackEl.textContent = 'Creating shortcut...';
   feedbackEl.style.color = '#888';
 
-  // Method 1: Use companion APK's ShortcutActivity (Activity context for requestPinShortcut)
+  // Launch ShortcutActivity (Activity context needed for requestPinShortcut)
   var result = exec("am start -n com.dracediax.muc/.ShortcutActivity -a com.dracediax.muc.CREATE_SHORTCUT --es ksu_package " + pkg + " 2>&1");
   debugLog.push({ shortcut: 'am start ShortcutActivity', result: result });
 
+  // Read result from SharedPreferences after activity runs
   setTimeout(function() {
-    var res = exec("cat /data/local/tmp/muc_shortcut_result 2>/dev/null").trim();
-    debugLog.push({ shortcut: 'result file', result: res || '(empty)' });
+    var prefsXml = exec("cat /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null");
+    var resMatch = prefsXml ? prefsXml.match(/shortcut_result">(.*?)</) : null;
+    var res = resMatch ? resMatch[1] : '';
+    debugLog.push({ shortcut: 'prefs result', result: res || '(empty)' });
 
     if (res.indexOf('ok|') === 0) {
-      feedbackEl.textContent = 'Shortcut added (' + res.split('|')[1] + ')';
+      feedbackEl.textContent = 'Shortcut requested — check home screen';
       feedbackEl.style.color = '#4a4';
+    } else if (res.indexOf('fail|') === 0) {
+      feedbackEl.textContent = 'Failed: ' + res.split('|')[1];
+      feedbackEl.style.color = '#f85149';
     } else {
-      // Method 2: Legacy broadcast from shell (how LSPosed does it)
-      feedbackEl.textContent = 'Trying legacy method...';
-      var legacy = exec("am broadcast -a com.android.launcher.action.INSTALL_SHORTCUT " +
-        "--es android.intent.extra.shortcut.NAME 'Module Updates' " +
-        "--ez duplicate false " +
-        "-n com.dracediax.muc/.ShortcutActivity 2>&1");
-      debugLog.push({ shortcut: 'legacy broadcast', result: legacy });
-      feedbackEl.textContent = 'Shortcut requested — check home screen. If nothing, check debug.';
-      feedbackEl.style.color = '#888';
+      feedbackEl.textContent = 'No response from companion app';
+      feedbackEl.style.color = '#d29922';
     }
-  }, 1000);
+  }, 2500);
 }
 
 // Scroll focused input into view when keyboard opens
