@@ -44,8 +44,14 @@ fi
 # Check if companion app is disabled by user
 companion_enabled="on"
 if [ -f "$SETTINGS_FILE" ]; then
+    # Handle both proper newlines and corrupted literal \n format
     companion_setting=$(grep '^companion_app=' "$SETTINGS_FILE" | cut -d= -f2)
+    if [ -z "$companion_setting" ]; then
+        # Fallback: check for literal \n format (older versions bug)
+        companion_setting=$(grep -o 'companion_app=[a-z]*' "$SETTINGS_FILE" | cut -d= -f2)
+    fi
     [ "$companion_setting" = "off" ] && companion_enabled="off"
+    log "companion setting: $companion_setting (enabled=$companion_enabled)"
 fi
 
 if [ "$companion_enabled" = "on" ] && [ -f "$MODDIR/muc-helper.apk" ]; then
