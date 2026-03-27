@@ -1765,23 +1765,21 @@ function updateSelected() {
 
 // Rollback — backup module before update
 function backupModule(modId) {
-  exec("mkdir -p /data/adb/muc/backups && cp /data/adb/modules/" + modId + "/module.prop /data/adb/muc/backups/" + modId + ".prop 2>/dev/null");
-  exec("cd /data/adb/modules/" + modId + " && zip -r -0 /data/adb/muc/backups/" + modId + ".zip . 2>/dev/null");
+  exec("rm -rf /data/adb/muc/backups/" + modId + " && mkdir -p /data/adb/muc/backups/" + modId);
+  exec("cp -r /data/adb/modules/" + modId + "/* /data/adb/muc/backups/" + modId + "/ 2>/dev/null");
 }
 
 function loadRollbackButtons() {
-  // Check which modules have backups and show rollback link
-  var backupList = exec("ls /data/adb/muc/backups/*.zip 2>/dev/null | tr '\\n' '|'");
+  var backupList = exec("ls -d /data/adb/muc/backups/*/ 2>/dev/null | tr '\\n' '|'");
   if (!backupList) return;
   var backups = backupList.split('|');
   for (var i = 0; i < backups.length; i++) {
-    var path = backups[i].trim();
+    var path = backups[i].trim().replace(/\/$/, '');
     if (!path) continue;
-    var modId = path.replace(/.*\//, '').replace('.zip', '');
+    var modId = path.replace(/.*\//, '');
     var statusEl = document.getElementById('upd-status-' + modId);
     if (statusEl && !statusEl.innerHTML) {
-      // Read backup version
-      var backupVer = exec("unzip -p /data/adb/muc/backups/" + modId + ".zip module.prop 2>/dev/null | grep '^version=' | cut -d= -f2 | tr -d '\\n'");
+      var backupVer = exec("grep '^version=' /data/adb/muc/backups/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
       if (backupVer) {
         statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback to ' + escapeHtml(backupVer) + '</button>';
       }
@@ -1790,14 +1788,13 @@ function loadRollbackButtons() {
 }
 
 function rollbackModule(modId, btn) {
-  var backupZip = '/data/adb/muc/backups/' + modId + '.zip';
-  var exists = exec("[ -f " + backupZip + " ] && echo yes || echo no").trim();
+  var exists = exec("[ -d /data/adb/muc/backups/" + modId + " ] && echo yes || echo no").trim();
   if (exists !== 'yes') {
     if (btn) btn.textContent = 'No backup found';
     return;
   }
   if (btn) { btn.disabled = true; btn.textContent = 'Rolling back...'; }
-  exec("unzip -o " + backupZip + " -d /data/adb/modules/" + modId + "/ 2>&1");
+  exec("rm -rf /data/adb/modules/" + modId + "/* && cp -r /data/adb/muc/backups/" + modId + "/* /data/adb/modules/" + modId + "/ 2>&1");
   if (btn) { btn.textContent = '\u2713 Rolled back'; btn.className = 'btn-update done'; }
   document.getElementById('reboot-banner').style.display = 'block';
   document.getElementById('reboot-btn').style.display = 'block';
