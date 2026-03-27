@@ -5,35 +5,61 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Module Update Checker</title>
 <style>
+  :root {
+    --bg: #1a1a2e; --bg2: #16213e; --bg3: #0f1a30; --bg4: #0d1117;
+    --fg: #e0e0e0; --fg2: #fff; --fg3: #ccc; --fg4: #888; --fg5: #666;
+    --accent: #4466aa; --accent2: #335588; --accent3: #1a2a4a;
+    --border: #334477; --border2: #334; --border3: #30363d;
+    --card: #16213e; --card-tracked: #1a2a4a;
+    --green: #2a6a2a; --green2: #1a5a1a; --red: #aa3333;
+    --warn: #d29922; --warn-bg: #2a2a1a; --update-bg: #4a3a1a; --update-fg: #ffaa33;
+  }
+  .light {
+    --bg: #f5f5f7; --bg2: #fff; --bg3: #eee; --bg4: #f0f0f0;
+    --fg: #333; --fg2: #111; --fg3: #444; --fg4: #888; --fg5: #aaa;
+    --accent: #3355aa; --accent2: #2244aa; --accent3: #e8eef8;
+    --border: #ccd; --border2: #ddd; --border3: #ddd;
+    --card: #fff; --card-tracked: #eef2fa;
+    --green: #2a8a2a; --green2: #1a7a1a; --red: #cc4444;
+    --warn: #b88800; --warn-bg: #fff8e0; --update-bg: #fff3e0; --update-fg: #cc7700;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, system-ui, sans-serif;
-    background: #1a1a2e; color: #e0e0e0;
+    background: var(--bg); color: var(--fg);
     padding: 16px; min-height: 100vh;
   }
-  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #fff; }
-  .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: var(--fg2); }
+  .subtitle { font-size: 13px; color: var(--fg4); margin-bottom: 20px; }
+  .search-box {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 10px 12px; color: var(--fg3);
+    font-size: 14px; outline: none; margin-bottom: 12px;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--fg5); }
   .module-card {
-    background: #16213e; border-radius: 12px;
+    background: var(--card); border-radius: 12px;
     padding: 14px 16px; margin-bottom: 10px;
     display: flex; align-items: center; gap: 12px;
     border: 1px solid transparent;
   }
-  .module-card.tracked { background: #1a2a4a; border-color: #334477; }
+  .module-card.tracked { background: var(--card-tracked); border-color: var(--border); }
+  .module-card.hidden { display: none; }
   .module-info { flex: 1; min-width: 0; }
   .module-name {
-    font-size: 15px; font-weight: 500; color: #fff;
+    font-size: 15px; font-weight: 500; color: var(--fg2);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .module-version { font-size: 12px; color: #888; margin-top: 2px; }
+  .module-version { font-size: 12px; color: var(--fg4); margin-top: 2px; }
   .module-repo { margin-top: 6px; }
   .module-repo input {
-    width: 100%; background: #0f1a30; border: 1px solid #334;
-    border-radius: 8px; padding: 8px 10px; color: #ccc;
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 10px; color: var(--fg3);
     font-size: 13px; outline: none;
   }
-  .module-repo input:focus { border-color: #5577bb; }
-  .module-repo input::placeholder { color: #555; }
+  .module-repo input:focus { border-color: var(--accent); }
+  .module-repo input::placeholder { color: var(--fg5); }
   .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
   .toggle input { opacity: 0; width: 0; height: 0; }
   .toggle .slider {
@@ -45,103 +71,103 @@
     height: 18px; width: 18px; left: 3px; bottom: 3px;
     background: #888; border-radius: 50%; transition: 0.3s;
   }
-  .toggle input:checked + .slider { background: #4466aa; }
+  .toggle input:checked + .slider { background: var(--accent); }
   .toggle input:checked + .slider:before { transform: translateX(20px); background: #fff; }
   .toggle-companion .slider { background: #aa3333; }
   .toggle-companion input:checked + .slider { background: #33aa33; }
   .toggle-companion input:checked + .slider:before { transform: translateX(20px); background: #fff; }
   .btn {
-    width: 100%; padding: 14px; background: #4466aa; color: #fff;
+    width: 100%; padding: 14px; background: var(--accent); color: var(--fg2);
     border: none; border-radius: 12px; font-size: 15px;
     font-weight: 500; cursor: pointer; margin-top: 16px;
   }
-  .btn:active { background: #335588; }
+  .btn:active { background: var(--accent2); }
   .btn-check { background: #2a4a2a; margin-top: 8px; }
   .btn-check:active { background: #1a3a1a; }
   .status {
     text-align: center; font-size: 13px;
-    color: #888; margin-top: 12px; min-height: 20px;
+    color: var(--fg4); margin-top: 12px; min-height: 20px;
   }
   .update-available {
-    display: inline-block; background: #4a3a1a; color: #ffaa33;
+    display: inline-block; background: var(--update-bg); color: var(--update-fg);
     font-size: 11px; padding: 2px 8px; border-radius: 6px; margin-left: 6px;
   }
   .up-to-date {
     display: inline-block; color: #4a4; font-size: 11px; margin-left: 6px;
   }
   .section-label {
-    font-size: 12px; color: #666; text-transform: uppercase;
+    font-size: 12px; color: var(--fg5); text-transform: uppercase;
     letter-spacing: 1px; margin: 20px 0 8px;
   }
-  .loading { text-align: center; padding: 40px; color: #666; }
+  .loading { text-align: center; padding: 40px; color: var(--fg5); }
   .progress-wrap {
-    background: #0f1a30; border-radius: 6px; height: 6px;
+    background: var(--bg3); border-radius: 6px; height: 6px;
     margin-top: 8px; overflow: hidden; display: none;
   }
   .progress-bar {
-    height: 100%; background: #4466aa; border-radius: 6px;
+    height: 100%; background: var(--accent); border-radius: 6px;
     width: 0%; transition: width 0.3s ease;
   }
   .check-status {
-    text-align: center; font-size: 12px; color: #666;
+    text-align: center; font-size: 12px; color: var(--fg5);
     margin-top: 6px; min-height: 16px;
   }
   .dbg-section {
-    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    background: var(--bg4); border: 1px solid var(--border3); border-radius: 8px;
     margin: 10px 0; padding: 12px; font-family: monospace;
     font-size: 13px; line-height: 1.6; color: #c9d1d9;
     word-break: break-all; white-space: pre-wrap;
   }
   .dbg-section h3 {
     font-size: 13px; color: #58a6ff; margin: 0 0 8px 0;
-    padding-bottom: 6px; border-bottom: 1px solid #21262d;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border3);
     font-family: -apple-system, system-ui, sans-serif;
   }
   .dbg-ok { color: #3fb950; }
-  .dbg-warn { color: #d29922; }
+  .dbg-warn { color: var(--warn); }
   .dbg-err { color: #f85149; }
   .dbg-dim { color: #6e7681; }
   .dbg-key { color: #79c0ff; }
   .btn-update {
-    display: block; background: #2a6a2a; color: #fff;
+    display: block; background: var(--green); color: var(--fg2);
     font-size: 13px; padding: 8px 16px; border-radius: 8px;
     border: none; cursor: pointer; margin-top: 8px; font-weight: 600;
     width: 100%; text-align: center; letter-spacing: 0.5px;
   }
-  .btn-update:active { background: #1a5a1a; }
-  .btn-update:disabled { background: #333; color: #666; cursor: default; }
+  .btn-update:active { background: var(--green2); }
+  .btn-update:disabled { background: #333; color: var(--fg5); cursor: default; }
   .btn-update.downloading { background: #3a5a3a; }
   .btn-update.installing { background: #4a4a2a; }
   .btn-update.done { background: #2a4a6a; }
   .update-status {
-    display: block; font-size: 11px; margin-top: 4px; color: #888; text-align: center;
+    display: block; font-size: 11px; margin-top: 4px; color: var(--fg4); text-align: center;
   }
   .btn-changelog {
-    display: inline-block; background: none; color: #5588cc;
+    display: inline-block; background: none; color: var(--accent);
     font-size: 11px; padding: 4px 0; border: none; cursor: pointer;
     text-decoration: underline; margin-top: 4px;
   }
   .changelog-body {
-    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    background: var(--bg4); border: 1px solid var(--border3); border-radius: 8px;
     padding: 10px 12px; margin-top: 6px; font-size: 12px;
     color: #c9d1d9; line-height: 1.5; white-space: pre-wrap;
     word-break: break-word; max-height: 200px; overflow-y: auto;
   }
   .btn-update-all {
-    width: 100%; padding: 14px; background: #2a6a2a; color: #fff;
+    width: 100%; padding: 14px; background: var(--green); color: var(--fg2);
     border: none; border-radius: 12px; font-size: 15px;
     font-weight: 600; cursor: pointer; margin-top: 12px;
     display: none; letter-spacing: 0.5px;
   }
-  .btn-update-all:active { background: #1a5a1a; }
-  .btn-update-all:disabled { background: #333; color: #666; cursor: default; }
+  .btn-update-all:active { background: var(--green2); }
+  .btn-update-all:disabled { background: #333; color: var(--fg5); cursor: default; }
   .update-all-progress {
-    font-size: 12px; color: #888; text-align: center;
+    font-size: 12px; color: var(--fg4); text-align: center;
     margin-top: 6px; min-height: 16px;
   }
   .reboot-banner {
     display: none; position: fixed; top: 0; left: 0; right: 0;
-    background: #2a4a6a; color: #fff; padding: 14px 16px;
+    background: #2a4a6a; color: var(--fg2); padding: 14px 16px;
     font-size: 14px; font-weight: 500; text-align: center;
     z-index: 100; border-bottom: 2px solid #5588bb;
     animation: slideDown 0.3s ease-out;
@@ -152,61 +178,61 @@
   }
   @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
   .settings-toggle {
-    width: 100%; padding: 14px; background: #1a2a4a; color: #ccd;
-    border: 1px solid #334477; border-radius: 12px; font-size: 15px;
+    width: 100%; padding: 14px; background: var(--accent3); color: #ccd;
+    border: 1px solid var(--border); border-radius: 12px; font-size: 15px;
     font-weight: 600; cursor: pointer; margin-top: 16px; text-align: center;
     letter-spacing: 0.5px;
   }
-  .settings-toggle:active { background: #16213e; }
+  .settings-toggle:active { background: var(--card); }
   .settings-panel {
-    display: none; background: #16213e; border: 1px solid #334477;
+    display: none; background: var(--card); border: 1px solid var(--border);
     border-top: none; border-radius: 0 0 12px 12px; padding: 16px;
     margin-top: -4px;
   }
   .settings-panel.open { display: block; }
   .setting-group {
     margin-bottom: 16px; padding-bottom: 16px;
-    border-bottom: 1px solid #1a2a3a;
+    border-bottom: 1px solid var(--border2);
   }
   .setting-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   .setting-group h3 {
-    font-size: 13px; color: #8899bb; margin-bottom: 8px;
+    font-size: 13px; color: var(--accent); margin-bottom: 8px;
     text-transform: uppercase; letter-spacing: 0.5px;
   }
   .setting-row {
     display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
   }
   .setting-row input[type="checkbox"] {
-    width: 18px; height: 18px; accent-color: #4466aa; flex-shrink: 0;
+    width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0;
   }
-  .setting-row label { font-size: 13px; color: #ccc; cursor: pointer; }
+  .setting-row label { font-size: 13px; color: var(--fg3); cursor: pointer; }
   .setting-row select {
-    background: #0f1a30; border: 1px solid #334; border-radius: 8px;
-    padding: 6px 10px; color: #ccc; font-size: 13px; outline: none;
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+    padding: 6px 10px; color: var(--fg3); font-size: 13px; outline: none;
   }
   .setting-input {
-    width: 100%; background: #0f1a30; border: 1px solid #334;
-    border-radius: 8px; padding: 8px 10px; color: #ccc;
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 10px; color: var(--fg3);
     font-size: 13px; outline: none; font-family: monospace; margin-top: 6px;
   }
-  .setting-input:focus { border-color: #5577bb; }
+  .setting-input:focus { border-color: var(--accent); }
   .setting-info {
-    font-size: 12px; color: #888; line-height: 1.6; margin-top: 8px;
+    font-size: 12px; color: var(--fg4); line-height: 1.6; margin-top: 8px;
   }
-  .setting-info a { color: #5588cc; text-decoration: none; }
+  .setting-info a { color: var(--accent); text-decoration: none; }
   .setting-warn {
-    font-size: 11px; color: #d29922; background: #2a2a1a;
+    font-size: 11px; color: var(--warn); background: var(--warn-bg);
     border-radius: 6px; padding: 8px 10px; margin-top: 8px; line-height: 1.5;
   }
   .api-stats {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
   }
   .api-stat {
-    background: #0f1a30; border-radius: 8px; padding: 10px;
+    background: var(--bg3); border-radius: 8px; padding: 10px;
     text-align: center;
   }
-  .api-stat .val { font-size: 20px; font-weight: 600; color: #fff; }
-  .api-stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .api-stat .val { font-size: 20px; font-weight: 600; color: var(--fg2); }
+  .api-stat .lbl { font-size: 11px; color: var(--fg4); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -226,11 +252,19 @@
 <p class="subtitle" style="margin:0">Track and update your root modules</p></div>
 </div>
 
-<div class="section-label">Installed Modules <span id="load-status" style="color:#666;font-size:11px;text-transform:none;letter-spacing:0"></span></div>
+<div class="section-label">Installed Modules <span id="load-status" style="color:var(--fg5);font-size:11px;text-transform:none;letter-spacing:0"></span></div>
+<input type="text" class="search-box" id="search-box" placeholder="Search modules..." oninput="filterModules(this.value)">
 <div class="progress-wrap" id="load-progress" style="display:none;margin-bottom:8px"><div class="progress-bar" id="load-bar"></div></div>
 <div id="modules-list"><div class="loading">Loading modules...</div></div>
 
-<button class="btn-update-all" id="update-all-btn" onclick="updateAll()">Update All</button>
+<div id="batch-bar" style="display:none;margin-top:12px">
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button class="btn" style="flex:1;padding:8px;font-size:12px;margin:0;background:var(--accent3);color:var(--fg3)" onclick="batchSelectAll(true)">Select All</button>
+    <button class="btn" style="flex:1;padding:8px;font-size:12px;margin:0;background:var(--accent3);color:var(--fg3)" onclick="batchSelectAll(false)">Deselect All</button>
+  </div>
+  <button class="btn" id="batch-update-btn" style="margin:0;background:var(--green);font-weight:600" onclick="updateSelected()">Update Selected (0)</button>
+</div>
+<button class="btn-update-all" id="update-all-btn" onclick="showBatchSelect()">Update All</button>
 <div class="update-all-progress" id="update-all-progress"></div>
 
 <button class="settings-toggle" onclick="toggleSettings()">Settings</button>
@@ -325,6 +359,14 @@
     </div>
     <div id="companion-reboot-hint" style="display:none;font-size:12px;color:#5588cc;margin-top:6px">
       Reboot to install the companion app.
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <h3>Appearance</h3>
+    <div class="setting-row">
+      <input type="checkbox" id="theme-toggle" onchange="toggleTheme();onSettingsChanged()">
+      <label for="theme-toggle">Light theme</label>
     </div>
   </div>
 
@@ -581,10 +623,12 @@ function renderModuleCard(mod, list) {
   var nameResolved = resolveRepo(mod.id, mod.name, mod.dir);
   var repo = saved ? (nameResolved || saved.repo) : nameResolved;
   var ignoreCi = saved ? (saved.ignoreCi || false) : false;
+  var preRelease = saved ? (saved.preRelease || false) : false;
 
   var card = document.createElement('div');
   card.className = 'module-card' + (tracked ? ' tracked' : '');
   card.id = 'card-' + mod.id;
+  card.setAttribute('data-name', mod.name.toLowerCase());
   card.innerHTML =
     '<div class="module-info">' +
       '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
@@ -594,9 +638,14 @@ function renderModuleCard(mod, list) {
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
                'value="' + escapeAttr(repo) + '" data-id="' + escapeAttr(mod.id) + '" class="repo-input">' +
       '</div>' +
-      (ghToken ? '<div style="margin-top:4px"><label style="font-size:11px;color:#666;cursor:pointer">' +
-        '<input type="checkbox" ' + (ignoreCi ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-ignore" style="width:14px;height:14px;vertical-align:middle;margin-right:4px">' +
-        'Mute CI notifications</label></div>' : '') +
+      '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:8px">' +
+        '<label style="font-size:11px;color:var(--fg5);cursor:pointer">' +
+          '<input type="checkbox" ' + (preRelease ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="pre-release" style="width:14px;height:14px;vertical-align:middle;margin-right:3px">' +
+          'Pre-releases</label>' +
+        (ghToken ? '<label style="font-size:11px;color:var(--fg5);cursor:pointer">' +
+          '<input type="checkbox" ' + (ignoreCi ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" class="ci-ignore" style="width:14px;height:14px;vertical-align:middle;margin-right:3px">' +
+          'Mute CI</label>' : '') +
+      '</div>' +
     '</div>' +
     '<label class="toggle">' +
       '<input type="checkbox" ' + (tracked ? 'checked' : '') + ' data-id="' + escapeAttr(mod.id) + '" ' +
@@ -666,9 +715,11 @@ function saveConfig() {
     var id = toggles[i].getAttribute('data-id');
     var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
     var ciBox = document.querySelector('.ci-ignore[data-id="' + id + '"]');
+    var preBox = document.querySelector('.pre-release[data-id="' + id + '"]');
     var repo = inp ? inp.value.trim() : '';
     var ignoreCi = ciBox ? ciBox.checked : false;
-    if (repo) newConfig.push({ id: id, repo: repo, ignoreCi: ignoreCi });
+    var preRelease = preBox ? preBox.checked : false;
+    if (repo) newConfig.push({ id: id, repo: repo, ignoreCi: ignoreCi, preRelease: preRelease });
   }
   var json = JSON.stringify(newConfig);
   exec("echo '" + json.replace(/'/g, "'\\''") + "' > " + CONFIG_PATH);
@@ -697,7 +748,8 @@ function saveConfig() {
   var companionOn = document.getElementById('companion-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  exec("printf 'boot_check=" + bootMode + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\n' > " + SETTINGS_PATH);
+  var themeLight = document.getElementById('theme-toggle').checked;
+  exec("printf 'boot_check=" + bootMode + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
 
   document.getElementById('settings-banner').style.display = 'none';
   document.getElementById('status').textContent = 'Configuration saved \u2713';
@@ -736,9 +788,11 @@ function checkNow() {
     var id = toggles[i].getAttribute('data-id');
     var inp = document.querySelector('.repo-input[data-id="' + id + '"]');
     var ciBox = document.querySelector('.ci-ignore[data-id="' + id + '"]');
+    var preBox = document.querySelector('.pre-release[data-id="' + id + '"]');
     var repo = inp ? inp.value.trim() : '';
     var ignoreCi = ciBox ? ciBox.checked : false;
-    if (repo) tracked.push({ id: id, repo: repo, ignoreCi: ignoreCi });
+    var preRelease = preBox ? preBox.checked : false;
+    if (repo) tracked.push({ id: id, repo: repo, ignoreCi: ignoreCi, preRelease: preRelease });
   }
 
   if (tracked.length === 0) {
@@ -793,8 +847,11 @@ function checkNow() {
     var ciLatest = '';
     var ciAsset = '';
 
-    // 1. Check releases
-    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " https://api.github.com/repos/" + t.repo + "/releases/latest | tr -d '\\n'");
+    // 1. Check releases (use /releases?per_page=1 for pre-releases, /releases/latest for stable only)
+    var releaseUrl = t.preRelease
+      ? "https://api.github.com/repos/" + t.repo + "/releases?per_page=1"
+      : "https://api.github.com/repos/" + t.repo + "/releases/latest";
+    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " '" + releaseUrl + "' | tr -d '\\n'");
     trackApiCall();
 
     if (result && result.length > 5) {
@@ -986,10 +1043,14 @@ function showChangelog(repo, el) {
 
 function updateModule(modId, assetUrl, btn) {
   btn.disabled = true;
-  btn.textContent = '\u2913 Downloading...';
+  btn.textContent = 'Backing up...';
   btn.className = 'btn-update downloading';
   var statusEl = document.getElementById('upd-status-' + modId);
   var zipPath = '/data/local/tmp/muc_' + modId + '.zip';
+
+  // Backup current module before updating
+  backupModule(modId);
+  btn.textContent = '\u2913 Downloading...';
 
   // Find module name for display
   var modName = modId;
@@ -1053,10 +1114,11 @@ function updateModule(modId, assetUrl, btn) {
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
         btn.textContent = '\u2713 ' + modName + ' — Installed';
         btn.className = 'btn-update done';
-        if (statusEl) statusEl.textContent = '';
+        if (statusEl) {
+          statusEl.innerHTML = '<button class="btn-changelog" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this)" style="color:var(--warn)">Rollback</button>';
+        }
 
         exec("grep -v '^" + modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
-        // Log to update history
         exec("echo '$(date +%Y-%m-%d\\ %H:%M) | " + modName.replace(/'/g, "") + " | " + assetUrl.replace(/.*\/tag\//, '').replace(/\/.*/, '') + "' >> /data/adb/muc/history");
 
         document.getElementById('reboot-banner').style.display = 'block';
@@ -1501,6 +1563,11 @@ function loadSettings() {
       document.getElementById('companion-warn').style.display = 'block';
       document.getElementById('companion-actions').style.display = 'none';
     }
+    var themeMatch = settings.match(/theme=(\w+)/);
+    if (themeMatch && themeMatch[1] === 'light') {
+      document.getElementById('theme-toggle').checked = true;
+      document.body.classList.add('light');
+    }
   }
   document.getElementById('boot-mode').value = bootMode;
 
@@ -1589,6 +1656,103 @@ document.addEventListener('focusin', function(e) {
 document.addEventListener('focusout', function() {
   document.body.style.paddingBottom = '';
 });
+
+// Search/filter
+function filterModules(query) {
+  query = query.toLowerCase().trim();
+  var cards = document.querySelectorAll('.module-card');
+  for (var i = 0; i < cards.length; i++) {
+    var name = cards[i].getAttribute('data-name') || '';
+    cards[i].style.display = (!query || name.indexOf(query) !== -1) ? '' : 'none';
+  }
+}
+
+// Theme
+function toggleTheme() {
+  document.body.classList.toggle('light', document.getElementById('theme-toggle').checked);
+}
+
+// Batch select
+function showBatchSelect() {
+  // Add checkboxes to all modules with updates
+  var btns = document.querySelectorAll('.btn-update:not(.done):not(:disabled)');
+  if (btns.length === 0) return;
+
+  for (var i = 0; i < btns.length; i++) {
+    var card = btns[i].closest('.module-card');
+    if (!card || card.querySelector('.batch-check')) continue;
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.className = 'batch-check';
+    cb.style.cssText = 'width:20px;height:20px;accent-color:var(--green);flex-shrink:0;cursor:pointer';
+    cb.onchange = updateBatchCount;
+    card.insertBefore(cb, card.firstChild);
+  }
+
+  document.getElementById('update-all-btn').style.display = 'none';
+  document.getElementById('batch-bar').style.display = 'block';
+  updateBatchCount();
+}
+
+function updateBatchCount() {
+  var checked = document.querySelectorAll('.batch-check:checked');
+  document.getElementById('batch-update-btn').textContent = '\u2191 Update Selected (' + checked.length + ')';
+  document.getElementById('batch-update-btn').disabled = (checked.length === 0);
+}
+
+function batchSelectAll(state) {
+  var cbs = document.querySelectorAll('.batch-check');
+  for (var i = 0; i < cbs.length; i++) cbs[i].checked = state;
+  updateBatchCount();
+}
+
+function updateSelected() {
+  var checked = document.querySelectorAll('.batch-check:checked');
+  if (checked.length === 0) return;
+
+  // Collect items to update
+  pendingUpdates = [];
+  for (var i = 0; i < checked.length; i++) {
+    var card = checked[i].closest('.module-card');
+    var btn = card.querySelector('.btn-update:not(.done):not(:disabled)');
+    if (!btn) continue;
+    var onclick = btn.getAttribute('onclick') || '';
+    var m = onclick.match(/updateModule\('([^']+)',\s*'([^']+)'/);
+    if (!m) continue;
+    var modId = m[1], assetUrl = m[2];
+    var modName = modId;
+    for (var j = 0; j < modules.length; j++) {
+      if (modules[j].id === modId) { modName = modules[j].name; break; }
+    }
+    pendingUpdates.push({ modId: modId, modName: modName, assetUrl: assetUrl, btn: btn });
+    checked[i].remove(); // remove checkbox
+  }
+
+  // Hide batch bar, run updateAll logic
+  document.getElementById('batch-bar').style.display = 'none';
+  if (pendingUpdates.length > 0) updateAll();
+}
+
+// Rollback — backup module before update
+function backupModule(modId) {
+  exec("mkdir -p /data/adb/muc/backups && cp /data/adb/modules/" + modId + "/module.prop /data/adb/muc/backups/" + modId + ".prop 2>/dev/null");
+  exec("cd /data/adb/modules/" + modId + " && zip -r -0 /data/adb/muc/backups/" + modId + ".zip . 2>/dev/null");
+}
+
+function rollbackModule(modId, btn) {
+  var backupZip = '/data/adb/muc/backups/' + modId + '.zip';
+  var exists = exec("[ -f " + backupZip + " ] && echo yes || echo no").trim();
+  if (exists !== 'yes') {
+    if (btn) btn.textContent = 'No backup found';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Rolling back...'; }
+  exec("unzip -o " + backupZip + " -d /data/adb/modules/" + modId + "/ 2>&1");
+  if (btn) { btn.textContent = '\u2713 Rolled back'; btn.className = 'btn-update done'; }
+  document.getElementById('reboot-banner').style.display = 'block';
+  document.getElementById('reboot-btn').style.display = 'block';
+}
 
 detectKsuPackage();
 loadSettings();
