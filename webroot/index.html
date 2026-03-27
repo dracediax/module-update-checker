@@ -321,11 +321,10 @@
       Companion app will be uninstalled on next reboot. Notifications fall back to shell.
     </div>
     <div class="setting-info">
-      Provides notification tap, home screen shortcut, and direct access to MUC without KSU Manager.
+      Provides notification tap and direct access to MUC without KSU Manager. Long-press the app in your drawer to add to home screen.
     </div>
-    <div id="companion-actions" style="margin-top:8px">
-      <button class="btn" style="background:#2a4a2a;margin-top:0;padding:10px;font-size:13px" onclick="addShortcut()">Add to Home Screen</button>
-      <div id="shortcut-feedback" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+    <div id="companion-reboot-hint" style="display:none;font-size:12px;color:#5588cc;margin-top:6px">
+      Reboot to install the companion app.
     </div>
   </div>
 
@@ -1285,129 +1284,56 @@ function showDebug() {
 
   var html = '';
 
-  // Section 1: Modules loaded
+  // Modules
   var s1 = '';
   for (var m = 0; m < modules.length; m++) {
     var mod = modules[m];
-    s1 += dbgLine('id', mod.id);
-    s1 += dbgLine('name', mod.name);
-    s1 += dbgLine('version', mod.version, mod.version === '?' ? 'dbg-err' : 'dbg-ok');
-    s1 += dbgLine('path', mod.fullPath);
-    if (m < modules.length - 1) s1 += '<span class="dbg-dim">---</span>\n';
+    s1 += dbgLine(mod.name, mod.version + ' \u00b7 ' + mod.id, mod.version === '?' ? 'dbg-err' : 'dbg-ok');
   }
   if (modules.length === 0) s1 = '<span class="dbg-warn">No modules discovered</span>\n';
   html += dbgSection('MODULES (' + modules.length + ')', s1);
 
-  // Section 2: version comparison test
+  // Status
   var s2 = '';
-  var testCases = [
-    ['v1.4.1 (245-72b2e84-release)', '1.4.1', 0],       // same after normalize
-    ['v1.0.0-rc.5', 'v1.0.0-rc.6', 1],                    // rc.6 > rc.5
-    ['v1.0.0-rc.6', 'v1.0.0', 1],                          // release > rc
-    ['v4.1.2', 'v4.1.3', 1],                                // patch bump
-    ['v4.1.2', 'v4.1.2', 0],                                // equal
-    ['v2.0.0', 'v1.9.9', -1]                                // downgrade
-  ];
-  for (var tc = 0; tc < testCases.length; tc++) {
-    var a = testCases[tc][0], b = testCases[tc][1], expected = testCases[tc][2];
-    var result = compareVersions(b, a);
-    var label = result > 0 ? 'NEWER' : (result < 0 ? 'OLDER' : 'SAME');
-    var pass = result === expected;
-    s2 += dbgLine(b + ' vs installed ' + a, label + (pass ? ' \u2713' : ' \u2717 expected ' + expected), pass ? 'dbg-ok' : 'dbg-err');
-  }
-  html += dbgSection('VERSION COMPARISON TEST', s2);
-
-  // Section 3: API stats
-  var s3 = '';
-  s3 += dbgLine('total calls', debugLog.length + '');
+  var companion = exec("pm path com.dracediax.muc 2>/dev/null").trim();
+  s2 += dbgLine('companion app', companion ? 'installed' : 'not installed', companion ? 'dbg-ok' : 'dbg-dim');
+  s2 += dbgLine('ksu manager', ksuPackage || '(not detected)', ksuPackage ? 'dbg-ok' : 'dbg-warn');
+  s2 += dbgLine('token', ghToken ? 'set' : 'not set', ghToken ? 'dbg-ok' : 'dbg-dim');
+  s2 += dbgLine('api calls', apiCalls + '/' + (ghToken ? '5000' : '60'));
   var errCount = 0;
-  for (var l = 0; l < debugLog.length; l++) {
-    if (debugLog[l].error) errCount++;
-  }
-  s3 += dbgLine('errors', errCount + '', errCount > 0 ? 'dbg-warn' : 'dbg-ok');
-  s3 += dbgLine('ksu manager', ksuPackage || '(not detected)', ksuPackage ? 'dbg-ok' : 'dbg-warn');
-  html += dbgSection('API STATS', s3);
+  for (var l = 0; l < debugLog.length; l++) { if (debugLog[l].error) errCount++; }
+  if (errCount > 0) s2 += dbgLine('errors', errCount + '', 'dbg-warn');
+  html += dbgSection('STATUS', s2);
 
-  // Section 4: Notification attempts
-  var s4 = '';
+  // Notifications
+  var s3 = '';
   var notifLogs = [];
   for (var nl = 0; nl < debugLog.length; nl++) {
     if (debugLog[nl].notif) notifLogs.push(debugLog[nl]);
   }
   if (notifLogs.length === 0) {
-    s4 = '<span class="dbg-dim">No notification attempts yet — press Check for Updates first</span>\n';
+    s3 = '<span class="dbg-dim">Press Check for Updates to see notification results</span>\n';
   } else {
     for (var ni = 0; ni < notifLogs.length; ni++) {
       var n = notifLogs[ni];
       var res = n.result || '(empty)';
-      var cls = res.indexOf('Error') !== -1 || res.indexOf('error') !== -1 || res.indexOf('Exception') !== -1 ? 'dbg-err' : (res === '(empty)' ? 'dbg-warn' : 'dbg-ok');
-      s4 += dbgLine(n.notif, res, cls);
+      var cls = res.indexOf('Error') !== -1 || res.indexOf('error') !== -1 ? 'dbg-err' : 'dbg-ok';
+      s3 += dbgLine(n.notif, res, cls);
     }
   }
-  html += dbgSection('NOTIFICATION ATTEMPTS', s4);
+  html += dbgSection('NOTIFICATIONS', s3);
 
-  // Section 5: KSU Intent & Shortcut Debug (single exec call to avoid lag)
-  var s5 = '';
-  var pkg = ksuPackage || exec("cat /data/adb/muc/ksu_package 2>/dev/null").trim();
-  s5 += dbgLine('ksu package', pkg || '(not detected)', pkg ? 'dbg-ok' : 'dbg-err');
-  if (pkg) {
-    // Single combined command to avoid multiple slow exec calls
-    var dbgData = exec("echo PKG:$(pm path com.dracediax.muc 2>/dev/null) && echo PERM:$(dumpsys package com.dracediax.muc 2>/dev/null | grep QUERY_ALL | head -1) && echo LAUNCH:$(cmd package resolve-activity --brief " + pkg + " 2>/dev/null | tail -1) && echo PREFS:$(cat /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | grep -E 'ksu_package|shortcut_result' | tr '\\n' '~') | tr '\\n' '|'");
-    var dbgParts = {};
-    if (dbgData) {
-      var lines = dbgData.split('|');
-      for (var di = 0; di < lines.length; di++) {
-        var ln = lines[di].trim();
-        if (ln.indexOf('PKG:') === 0) dbgParts.pkg = ln.substring(4);
-        if (ln.indexOf('PERM:') === 0) dbgParts.perm = ln.substring(5);
-        if (ln.indexOf('LAUNCH:') === 0) dbgParts.launch = ln.substring(7);
-        if (ln.indexOf('PREFS:') === 0) dbgParts.prefs = ln.substring(6);
-      }
-    }
-    s5 += dbgLine('companion APK', dbgParts.pkg || '(not installed)', dbgParts.pkg ? 'dbg-ok' : 'dbg-err');
-    s5 += dbgLine('QUERY_ALL_PACKAGES', dbgParts.perm || '(not found)', dbgParts.perm ? 'dbg-ok' : 'dbg-err');
-    s5 += dbgLine('launcher activity', dbgParts.launch || '(not resolved)', dbgParts.launch ? 'dbg-ok' : 'dbg-warn');
-    s5 += dbgLine('WebUIActivity', pkg + '/.ui.webui.WebUIActivity (NOT exported)', 'dbg-warn');
-    s5 += dbgLine('deep link', 'not possible — MainActivity does not forward extras', 'dbg-dim');
-
-    // Parse prefs
-    if (dbgParts.prefs) {
-      var prefsParts = dbgParts.prefs.split('~');
-      for (var pi = 0; pi < prefsParts.length; pi++) {
-        var pp = prefsParts[pi].trim();
-        if (pp) s5 += dbgLine('prefs', pp, 'dbg-dim');
-      }
-    }
-  }
-  html += dbgSection('KSU INTENT DEBUG', s5);
-
-  // Section 6: Shortcut Debug (use data already fetched above)
-  var s6 = '';
-  var shortcutRes = dbgParts && dbgParts.prefs ? dbgParts.prefs : '';
-  var scMatch = shortcutRes.match(/shortcut_result">([^<]*)/);
-  var scResult = scMatch ? scMatch[1] : '';
-  s6 += dbgLine('last result', scResult || '(none)', scResult ? (scResult.indexOf('ok|') === 0 ? 'dbg-ok' : 'dbg-warn') : 'dbg-dim');
-  for (var si = 0; si < debugLog.length; si++) {
-    if (debugLog[si].shortcut) {
-      s6 += dbgLine(debugLog[si].shortcut, debugLog[si].result || '(empty)', 'dbg-dim');
-    }
-  }
-  if (!scResult && debugLog.length === 0) {
-    s6 += '<span class="dbg-dim">No shortcut attempts yet</span>\n';
-  }
-  html += dbgSection('SHORTCUT DEBUG', s6);
-
-  // Section 7: Update History
-  var s7 = '';
+  // Update History
+  var s4 = '';
   var histRaw = exec("cat /data/adb/muc/history 2>/dev/null | tail -20 | tr '\\n' '|'");
   if (histRaw) {
     var histLines = histRaw.split('|');
     for (var hi = histLines.length - 1; hi >= 0; hi--) {
-      if (histLines[hi].trim()) s7 += dbgLine('', histLines[hi].trim(), 'dbg-dim');
+      if (histLines[hi].trim()) s4 += dbgLine('', histLines[hi].trim(), 'dbg-dim');
     }
   }
-  if (!s7) s7 = '<span class="dbg-dim">No updates installed yet</span>\n';
-  html += dbgSection('UPDATE HISTORY', s7);
+  if (!s4) s4 = '<span class="dbg-dim">No updates installed yet</span>\n';
+  html += dbgSection('UPDATE HISTORY', s4);
 
   // Bug report button
   var reportHtml = '<div style="margin-top:16px;text-align:center">' +
@@ -1513,9 +1439,11 @@ function onCompanionToggle() {
   var enabled = document.getElementById('companion-toggle').checked;
   var status = document.getElementById('companion-status');
   status.textContent = enabled ? 'Enabled' : 'Disabled';
-  status.style.color = enabled ? '#4a4' : '#a55';
+  status.style.color = enabled ? '#3a3' : '#a55';
   document.getElementById('companion-warn').style.display = enabled ? 'none' : 'block';
-  document.getElementById('companion-actions').style.display = enabled ? 'block' : 'none';
+  // Show reboot hint if re-enabling (app needs reinstall)
+  var needsReboot = (enabled !== companionWasOn);
+  document.getElementById('companion-reboot-hint').style.display = (enabled && !companionWasOn) ? 'block' : 'none';
   onSettingsChanged();
 }
 
@@ -1636,41 +1564,7 @@ function curlAuth() {
   return "";
 }
 
-function addShortcut() {
-  var pkg = ksuPackage || exec("cat /data/adb/muc/ksu_package 2>/dev/null").trim();
-  var feedbackEl = document.getElementById('shortcut-feedback');
-  if (!feedbackEl) return;
-
-  if (!pkg) {
-    feedbackEl.textContent = 'KSU Manager not detected';
-    feedbackEl.style.color = '#d29922';
-    return;
-  }
-
-  feedbackEl.textContent = 'Creating shortcut...';
-  feedbackEl.style.color = '#888';
-
-  // Launch ShortcutActivity (Activity context needed for requestPinShortcut)
-  var result = exec("am start -n com.dracediax.muc/.ShortcutActivity -a com.dracediax.muc.CREATE_SHORTCUT --es ksu_package " + pkg + " 2>&1");
-  debugLog.push({ shortcut: 'am start ShortcutActivity', result: result });
-
-  // Read result from SharedPreferences (use grep, not cat — exec() only returns first line)
-  setTimeout(function() {
-    var res = exec("grep -o 'shortcut_result\">[^<]*' /data/data/com.dracediax.muc/shared_prefs/muc_prefs.xml 2>/dev/null | sed 's/shortcut_result\">//' | tr -d '\\n'");
-    debugLog.push({ shortcut: 'prefs result', result: res || '(empty)' });
-
-    if (res.indexOf('ok|') === 0) {
-      feedbackEl.textContent = 'Shortcut pinned — check home screen';
-      feedbackEl.style.color = '#4a4';
-    } else if (res.indexOf('fail|') === 0) {
-      feedbackEl.textContent = 'Failed: ' + res.split('|')[1];
-      feedbackEl.style.color = '#f85149';
-    } else {
-      feedbackEl.textContent = 'No response from companion app';
-      feedbackEl.style.color = '#d29922';
-    }
-  }, 2500);
-}
+// addShortcut removed — users can long-press app in drawer to add to home screen
 
 // Scroll focused input into view when keyboard opens
 document.addEventListener('focusin', function(e) {
