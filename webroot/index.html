@@ -635,6 +635,15 @@ function checkNow() {
     return;
   }
 
+  // Clear all badges before re-checking (removes stale results from untracked modules)
+  var trackedIds = {};
+  for (var t = 0; t < tracked.length; t++) trackedIds[tracked[t].id] = true;
+  for (var m = 0; m < modules.length; m++) {
+    var badge = document.getElementById('upd-' + modules[m].id);
+    if (badge) badge.innerHTML = '';
+  }
+  document.getElementById('update-all-btn').style.display = 'none';
+
   var progressWrap = document.getElementById('progress-wrap');
   var progressBar = document.getElementById('progress-bar');
   var checkStatus = document.getElementById('check-status');
@@ -1166,7 +1175,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.3</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.4</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
