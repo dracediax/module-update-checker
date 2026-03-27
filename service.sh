@@ -164,18 +164,22 @@ send_notification() {
 
     log "sending notification: $title | $text"
 
-    # Try companion APK first (explicit broadcast with ksu package for tap-to-open)
-    local ksu_pkg=$(cat $KSU_PKG_FILE 2>/dev/null)
-    local ksu_arg=""
-    [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
-    local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" $ksu_arg 2>&1)
-    log "companion app: $result"
+    local sent=0
+    # Try companion APK if installed
+    if pm path com.dracediax.muc >/dev/null 2>&1; then
+        local ksu_pkg=$(cat $KSU_PKG_FILE 2>/dev/null)
+        local ksu_arg=""
+        [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
+        local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" $ksu_arg 2>&1)
+        log "companion app: $result"
+        sent=1
+    fi
 
-    # Fallback to shell if companion not installed or disabled
-    if echo "$result" | grep -qi "not found\|error"; then
-        log "companion not available, falling back to shell"
+    # Shell fallback if companion not installed
+    if [ "$sent" = "0" ]; then
+        log "companion not installed, using shell notification"
         local shell_text=$(echo "$text" | tr '\n' '|' | sed 's/|/ | /g')
-        result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$shell_text'" 2>&1)
+        local result=$(su 2000 -c "/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: $title' muc_updates '$shell_text'" 2>&1)
         log "shell notification: $result"
     fi
 
