@@ -677,7 +677,7 @@ function saveConfig() {
   var companionOn = document.getElementById('companion-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  exec("echo 'boot_check=" + bootMode + "\\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\\ncompanion_app=" + (companionOn ? 'on' : 'off') + "' > " + SETTINGS_PATH);
+  exec("printf 'boot_check=" + bootMode + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\n' > " + SETTINGS_PATH);
 
   document.getElementById('settings-banner').style.display = 'none';
   document.getElementById('status').textContent = 'Configuration saved \u2713';
