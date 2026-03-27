@@ -38,19 +38,14 @@ if [ "$net_wait" -ge 90 ]; then
     log "network timeout after 90s — proceeding anyway"
 fi
 
-# Install/update companion APK if not installed or outdated
+# Always install/update companion APK on boot (ensures permission updates take effect)
 if [ -f "$MODDIR/muc-helper.apk" ]; then
-    installed_ver=$(pm path com.dracediax.muc 2>/dev/null)
-    if [ -z "$installed_ver" ]; then
-        log "installing companion APK..."
-        pm install -r -g "$MODDIR/muc-helper.apk" >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            log "companion APK installed"
-        else
-            log "companion APK install failed"
-        fi
+    log "installing companion APK..."
+    pm install -r -g "$MODDIR/muc-helper.apk" >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        log "companion APK installed/updated"
     else
-        log "companion APK already installed"
+        log "companion APK install failed"
     fi
     # Grant notification permission (required on Android 13+)
     pm grant com.dracediax.muc android.permission.POST_NOTIFICATIONS >/dev/null 2>&1
