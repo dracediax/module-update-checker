@@ -14,7 +14,7 @@
 - **Auto-discovery** — finds all installed modules, no manual setup
 - **One-tap updates** — download, install, or update all at once
 - **Notifications** — get notified when modules have updates available, on boot and every 24h
-- **Standalone app** — notification tap and home screen shortcut open MUC directly
+- **Standalone app** — notification tap and home screen shortcut open MUC directly ([details](#standalone-app))
 - **Nightly builds** — detects CI/nightly builds from GitHub Actions ([requires token](#github-token))
 - **Background checks** — configurable: every boot, daily, or manual only
 - **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
