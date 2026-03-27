@@ -800,7 +800,7 @@ function checkNow() {
     var notifTitle, notifText;
     if (updates > 0) {
       notifTitle = updates + ' module update' + (updates > 1 ? 's' : '') + ' available';
-      notifText = updateNames.join(' | ');
+      notifText = updateNames.join('\n');
     } else if (errors === 0) {
       notifTitle = 'Module Update Checker';
       notifText = 'All modules up to date';
@@ -916,9 +916,9 @@ function collectPendingUpdates() {
 function showUpdateAllButton() {
   var count = collectPendingUpdates();
   var btn = document.getElementById('update-all-btn');
-  if (count >= 2) {
+  if (count >= 1) {
     btn.style.display = 'block';
-    btn.textContent = '\u2191 Update All (' + count + ' modules)';
+    btn.textContent = '\u2191 Update All (' + count + (count === 1 ? ' module' : ' modules') + ')';
     btn.disabled = false;
   } else {
     btn.style.display = 'none';
@@ -1165,7 +1165,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.1</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
