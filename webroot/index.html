@@ -17,8 +17,9 @@
     background: #16213e; border-radius: 12px;
     padding: 14px 16px; margin-bottom: 10px;
     display: flex; align-items: center; gap: 12px;
+    border: 1px solid transparent;
   }
-  .module-card.tracked { background: #1a2a4a; border: 1px solid #334477; }
+  .module-card.tracked { background: #1a2a4a; border-color: #334477; }
   .module-info { flex: 1; min-width: 0; }
   .module-name {
     font-size: 15px; font-weight: 500; color: #fff;
@@ -1165,7 +1166,7 @@ function showDebug() {
   }
   html += dbgSection('NOTIFICATION ATTEMPTS', s4);
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.1</div>' + html + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v4.2.3</div>' + html + '</div>';
 }
 
 function detectKsuPackage() {
@@ -1324,7 +1325,7 @@ function addShortcut() {
 
 // Scroll focused input into view when keyboard opens
 document.addEventListener('focusin', function(e) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+  if ((e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') || e.target.tagName === 'SELECT') {
     document.body.style.paddingBottom = '50vh';
     setTimeout(function() {
       e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
