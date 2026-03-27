@@ -702,6 +702,17 @@ function saveConfig() {
   document.getElementById('settings-banner').style.display = 'none';
   document.getElementById('status').textContent = 'Configuration saved \u2713';
 
+  // Clear badges for modules that are no longer tracked
+  var trackedIds = {};
+  for (var ti = 0; ti < newConfig.length; ti++) trackedIds[newConfig[ti].id] = true;
+  for (var mi = 0; mi < modules.length; mi++) {
+    if (!trackedIds[modules[mi].id]) {
+      var badge = document.getElementById('upd-' + modules[mi].id);
+      if (badge) badge.innerHTML = '';
+    }
+  }
+  showUpdateAllButton();
+
   // Only show reboot if companion state actually changed from boot state
   var companionChanged = (companionOn !== companionWasOn);
   if (companionChanged) {
@@ -925,7 +936,7 @@ function checkNow() {
       var companionInstalled = exec("pm path com.dracediax.muc 2>/dev/null").trim();
       if (companionInstalled) {
         var ksuArg = ksuPackage ? " --es ksu_package " + ksuPackage : "";
-        var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "\\nTap to view'" + ksuArg + " 2>&1");
+        var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "' --es hint 'tap'" + ksuArg + " 2>&1");
         debugLog.push({ notif: 'companion APK', result: notifResult || '(empty)' });
       } else {
         var shellText = safeText.replace(/\n/g, ' | ') + ' | Open WebUI to view';
