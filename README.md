@@ -1,31 +1,23 @@
 <h1><img src="logo.png" height="38" align="center" alt=""> Module Update Checker</h1>
 
-### Track, check, and update your KernelSU / Magisk / APatch modules — all from one WebUI.
+**Track, check, and update your root modules — all from one place.**
 
 [![KernelSU](https://img.shields.io/badge/KernelSU-Module-green?style=for-the-badge)](https://github.com/tiann/KernelSU)
 [![Magisk](https://img.shields.io/badge/Magisk-Compatible-blue?style=for-the-badge)](https://github.com/topjohnwu/Magisk)
 [![APatch](https://img.shields.io/badge/APatch-Compatible-purple?style=for-the-badge)](https://github.com/bmax121/APatch)
 [![Android](https://img.shields.io/badge/Android-12%2B-orange?style=for-the-badge)](https://developer.android.com)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
 ---
 
 ### Features
 
-| Feature | Description |
-|---------|-------------|
-| Auto-discovery | Finds all installed modules automatically |
-| GitHub tracking | Checks releases + CI builds for newer versions |
-| One-tap update | Download and install directly from the WebUI |
-| Update All | Single button to update all modules at once |
-| Semantic versioning | Proper numeric comparison (handles rc tags, multi-part versions) |
-| Notifications | Branded alerts with custom icon on boot and every 24h |
-| Notification tap | Opens KSU Manager on tap |
-| Instant results | Background checks cached — WebUI loads instantly |
-| CI builds | Detects nightly builds from GitHub Actions (with token) |
-| CI artifact install | Unwraps and installs CI artifacts directly |
-| Smart muting | Per-module CI notification control |
-| Progress bar | Live per-module progress during checks |
+- **Auto-discovery** — finds all installed modules, no manual setup
+- **One-tap updates** — download, install, or update all at once
+- **Smart notifications** — branded alerts on boot with your module's logo
+- **Standalone app** — notification tap and home screen shortcut open MUC directly
+- **Nightly builds** — detects CI/nightly builds from GitHub Actions ([requires token](#github-token))
+- **Background checks** — configurable: every boot, daily, or manual only
+- **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
 
 ---
 
@@ -33,41 +25,53 @@
 
 ```
 1. Download the latest .zip from Releases
-2. Flash via your module manager
+2. Flash via KSU / Magisk / APatch
 3. Reboot
 4. Open the WebUI → toggle modules → Save → Check for Updates
 ```
 
-That's it. Updates are checked on boot and every 24 hours automatically.
+Updates are checked automatically on boot and every 24 hours.
 
 ---
 
 ### Compatibility
 
-| Manager | WebUI | Background Checks | Notifications | Update Install |
-|---------|-------|-------------------|---------------|---------------|
-| KernelSU Next | Full | Full | Full | Full |
-| KernelSU | Full | Full | Full | Full |
-| KsuWebUI (standalone) | Full | Full | Full | Full |
-| Magisk + KsuWebUI | Full | Full | Full | Full |
-| APatch + KsuWebUI | Full | Full | Full | Full |
-| Magisk (no WebUI) | N/A | Full | Full | N/A |
+| Manager | WebUI | Background | Notifications | Install |
+|---------|:-----:|:----------:|:-------------:|:-------:|
+| KernelSU Next | Yes | Yes | Yes | Yes |
+| KernelSU | Yes | Yes | Yes | Yes |
+| KsuWebUI standalone | Yes | Yes | Yes | Yes |
+| Magisk + KsuWebUI | Yes | Yes | Yes | Yes |
+| APatch + KsuWebUI | Yes | Yes | Yes | Yes |
+| Magisk (no WebUI) | — | Yes | Yes | — |
 
-**WebUI APIs supported:** `ksu.exec()`, `ksuwebui.exec()` — works across KernelSU, KSU Next, and KsuWebUI standalone.
+---
+
+### Standalone App
+
+A companion app is bundled with the module and auto-installed on boot. It provides:
+
+- **Direct access** — opens the full MUC WebUI without going through KSU Manager
+- **Notification tap** — tap any update notification to jump straight into MUC
+- **Home screen shortcut** — pin MUC to your home screen
+- **Branded notifications** — shows "Module Update Checker" with custom icon
+- **No root grant needed** — communicates with the module's root daemon via IPC, no Superuser prompt required
+
+The module also works inside KSU Manager's WebUI as usual.
 
 ---
 
 ### Pre-filled Repos
 
-Auto-detected — just toggle them on:
+18 modules auto-detected — just toggle them on. Enter any `owner/repo` for others.
 
 <details>
-<summary>View all 18 supported modules</summary>
+<summary>View all supported modules</summary>
 
 | Module | Repository | Notes |
 |--------|-----------|-------|
-| Vector / LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) | Formerly LSPosed |
-| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) | CI only, needs token |
+| Vector / LSPosed | [JingMatrix/LSPosed](https://github.com/JingMatrix/LSPosed) | |
+| LSPosed Irena | [re-zero001/LSPosed-Irena](https://github.com/re-zero001/LSPosed-Irena) | [CI only](#github-token) |
 | ReZygisk | [PerformanC/ReZygisk](https://github.com/PerformanC/ReZygisk) | |
 | ZygiskNext | [Dr-TSNG/ZygiskNext](https://github.com/Dr-TSNG/ZygiskNext) | |
 | Shamiko | [LSPosed/LSPosed.github.io](https://github.com/LSPosed/LSPosed.github.io) | |
@@ -76,7 +80,7 @@ Auto-detected — just toggle them on:
 | TEESimulator-RS | [Enginex0/TEESimulator-RS](https://github.com/Enginex0/TEESimulator-RS) | Auto-detected by name |
 | Play Integrity Fix | [KOWX712/PlayIntegrityFix](https://github.com/KOWX712/PlayIntegrityFix) | |
 | Tricky Addon UTL | [KOWX712/Tricky-Addon-Update-Target-List](https://github.com/KOWX712/Tricky-Addon-Update-Target-List) | |
-| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | May show false updates |
+| SUSFS | [sidex15/susfs4ksu-module](https://github.com/sidex15/susfs4ksu-module) | Version mismatch possible |
 | Yurikey | [Yurii0307/yurikey](https://github.com/Yurii0307/yurikey) | |
 | NoHello | [MhmRdd/NoHello](https://github.com/MhmRdd/NoHello) | |
 | Anti-Bootloop | [Kolass2004/anti-bootloop-module](https://github.com/Kolass2004/anti-bootloop-module) | |
@@ -85,74 +89,73 @@ Auto-detected — just toggle them on:
 | Stepless Volume | [dracediax/stepless-volume](https://github.com/dracediax/stepless-volume) | |
 | Wireless ADB | [dracediax/wireless-adb](https://github.com/dracediax/wireless-adb) | |
 
-Enter any `owner/repo` manually for modules not listed.
-
 </details>
 
 ---
 
-### Companion APK
+### GitHub Token
 
-A lightweight companion app (~20KB) is bundled and auto-installed on boot:
+A personal access token is **optional** but unlocks additional features:
 
-| Feature | Status |
-|---------|--------|
-| Branded notifications | "Module Update Checker" sender name with custom icon |
-| Tap notification | Opens KSU Manager |
-| Home screen shortcut | Adds "Module Updates" shortcut to home screen |
-| Update All | Single button to update all modules at once |
+| | Without token | With token |
+|---|:---:|:---:|
+| Release updates | Yes | Yes |
+| API rate limit | 60/hour | 5,000/hour |
+| CI/nightly builds | — | Yes |
+| CI artifact install | — | Yes |
+| Per-module CI muting | — | Yes |
 
-The module works fully without the companion app — falls back to shell notifications.
+**How to get one:**
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Generate new token (classic)
+3. Leave **all scopes unchecked** — no permissions needed
+4. Paste it in Settings > GitHub Token
 
-> **Note:** Notification tap and shortcut open KSU Manager's main screen, not directly to this module's WebUI page. KSU's WebUIActivity is not exported, so deep linking from external apps is not possible. This is a KSU limitation — modules like LSPosed work around this by having their own full manager APK.
+**Security:** The token is stored in plaintext at `/data/adb/muc_token` (chmod 600). It has no scopes, so it can only read public repos — but it is tied to your GitHub account. Any root app could read it.
+
+> **CI-only modules** like [LSPosed Irena](https://github.com/re-zero001/LSPosed-Irena) publish builds via GitHub Actions instead of Releases. A token is required to detect and download these nightly builds.
 
 ---
 
 <details>
 <summary><b>Settings</b></summary>
 
-**Boot Check Mode**
-| Mode | Behavior |
+| Boot check mode | Behavior |
 |------|----------|
-| Every boot | Always check |
-| Every boot (skip <1h) | Default — smart cooldown |
-| Once a day | 24h+ since last check |
-| Manual only | WebUI button only |
-
-**GitHub Token** — Unlocks CI builds, 5,000 req/hr, per-module muting. No scopes needed.
-
-**API Usage** — Live stats: calls, limit, reset timer, last check.
-
-</details>
-
-<details>
-<summary><b>Battery Impact</b></summary>
-
-**Negligible.** One network burst on boot, then sleeps. No persistent services, no wake locks. Companion app runs for milliseconds per broadcast.
+| Every boot | Always checks on reboot |
+| Every boot (skip if <1h) | Default — skips if checked recently |
+| Once a day | Checks if 24+ hours since last |
+| Manual only | Only checks when you press the button |
 
 </details>
 
 <details>
 <summary><b>How It Works</b></summary>
 
-**WebUI** — `ksu.exec()` runs shell commands: `find` for discovery, `curl` for GitHub API, `ksud module install` for updates.
+**WebUI** — Runs shell commands via `ksu.exec()`: `find` for module discovery, `curl` for GitHub API, `ksud module install` for updates.
 
-**service.sh** — Checks on boot + every 24h. Caches results. Installs/updates companion APK. Sends branded notifications.
+**service.sh** — Background daemon that checks on boot + every 24h, caches results, installs the companion app, sends notifications, and runs a root IPC handler for the standalone app.
 
-**Companion APK** (16KB) — BroadcastReceiver for notifications via `am broadcast`. No launcher icon, no services.
+**Companion app** (~60KB) — Standalone WebView that loads the module's WebUI directly. Communicates with the root daemon via file-based IPC — no Superuser permission needed. Also handles notifications and home screen shortcuts.
 
-**Data files** — All at `/data/adb/` (persist across updates): config, cache, token, settings, stats.
+**Data** — Config, cache, token, and settings stored at `/data/adb/` so they persist across module updates.
+
+</details>
+
+<details>
+<summary><b>Battery & Performance</b></summary>
+
+**Negligible.** One network burst on boot, then idle. No persistent services or wake locks. The IPC daemon uses <1% CPU (50ms poll interval, no-op when idle).
 
 </details>
 
 <details>
 <summary><b>Known Limitations</b></summary>
 
-- `exec()` returns first line only — all commands use `grep`/`tr` workarounds
-- SUSFS reports kernel version, not module version
-- CI artifacts require GitHub token
-- Update button needs `.zip` release asset
-- Notification tap and shortcut open KSU Manager main screen — WebUIActivity is not exported, deep linking not possible from external apps (LSPosed works differently because it has its own standalone manager APK)
+- SUSFS reports kernel version instead of module version — may show false updates
+- CI artifacts require a [GitHub token](#github-token)
+- Update button requires a `.zip` release asset
+- Some modules share the same ID (e.g. TrickyStore / TEESimulator) — resolved automatically by module name
 
 </details>
 
