@@ -922,14 +922,15 @@ function checkNow() {
       var safeTitle = notifTitle.replace(/'/g, "'\\''");
       var safeText = notifText.replace(/'/g, "'\\''");
 
-      // Try companion APK (explicit broadcast with include-stopped flag + ksu package)
-      var ksuArg = ksuPackage ? " --es ksu_package " + ksuPackage : "";
-      var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "'" + ksuArg + " 2>&1");
-      debugLog.push({ notif: 'companion APK', result: notifResult || '(empty)' });
-
-      // Fallback to shell if companion not installed
-      if (!notifResult || notifResult.indexOf('not found') !== -1 || notifResult.indexOf('Error') !== -1) {
-        var shellResult = exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + safeText + "'\" 2>&1");
+      // Check if companion app is installed
+      var companionInstalled = exec("pm path com.dracediax.muc 2>/dev/null").trim();
+      if (companionInstalled) {
+        var ksuArg = ksuPackage ? " --es ksu_package " + ksuPackage : "";
+        var notifResult = exec("am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title '" + safeTitle + "' --es text '" + safeText + "\\nTap to view'" + ksuArg + " 2>&1");
+        debugLog.push({ notif: 'companion APK', result: notifResult || '(empty)' });
+      } else {
+        var shellText = safeText.replace(/\n/g, ' | ') + ' | Open WebUI to view';
+        var shellResult = exec("su 2000 -c \"/system/bin/cmd notification post -S bigtext -t 'Module Update Checker: " + safeTitle + "' muc_updates '" + shellText + "'\" 2>&1");
         debugLog.push({ notif: 'shell fallback', result: shellResult || '(empty)' });
       }
     }
