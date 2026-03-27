@@ -12,15 +12,19 @@
 ### Features
 
 - **Auto-discovery** — finds all installed modules, no manual setup
-- **One-tap updates** — download, install, or update all at once
+- **One-tap updates** — download, install, or batch update selected modules
+- **Rollback** — automatic backup before every update, one-tap restore via ⚙ menu
+- **Pre-release tracking** — per-module toggle to include beta/RC releases
+- **Search & filter** — find modules instantly by name
+- **Light & dark theme** — toggle in Settings > Appearance
+- **Changelog viewer** — view release notes before updating
 - **Notifications** — get notified when modules have updates available, on boot and every 24h
 - **Standalone app** — notification tap and home screen shortcut open MUC directly ([see features](#standalone-app) | [hide from root detectors](#hiding-from-root-detectors))
 - **Nightly builds** — detects CI/nightly builds from GitHub Actions ([requires token](#github-token))
 - **Background checks** — configurable: every boot, daily, or manual only
+- **Auto-save** — all changes saved instantly, no save button needed
 - **18+ pre-filled repos** — just toggle and go ([see list](#pre-filled-repos))
 - **Minimal battery usage** — no persistent services or wake locks ([see Battery & Performance](#battery--performance))
-- **Changelog viewer** — view release notes before updating
-- **Update history** — log of all installed updates (Debug > Update History)
 
 > **Found a bug?** Enable the debug menu in Settings > Advanced, then tap "Copy Bug Report for GitHub" — it generates a pre-filled report with device info, service log, and module state. [Open an issue](https://github.com/dracediax/module-update-checker/issues/new) and paste it.
 
