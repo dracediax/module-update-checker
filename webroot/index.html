@@ -47,6 +47,9 @@
   }
   .toggle input:checked + .slider { background: #4466aa; }
   .toggle input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+  .toggle-companion .slider { background: #aa3333; }
+  .toggle-companion input:checked + .slider { background: #33aa33; }
+  .toggle-companion input:checked + .slider:before { transform: translateX(20px); background: #fff; }
   .btn {
     width: 100%; padding: 14px; background: #4466aa; color: #fff;
     border: none; border-radius: 12px; font-size: 15px;
@@ -201,9 +204,9 @@
   Reboot to apply updates
   <button class="dismiss" onclick="document.getElementById('reboot-banner').style.display='none'">&times;</button>
 </div>
-<div class="reboot-banner" id="settings-banner" style="display:none;background:#2a3a2a;border-bottom-color:#4a6a4a">
+<div id="settings-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#2a3a2a;color:#fff;padding:14px 16px;font-size:14px;font-weight:500;text-align:center;z-index:101;border-bottom:2px solid #4a6a4a;animation:slideDown 0.3s ease-out">
   Settings changed — press Save Configuration to apply
-  <button class="dismiss" onclick="document.getElementById('settings-banner').style.display='none'">&times;</button>
+  <button style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#aca;font-size:18px;cursor:pointer" onclick="document.getElementById('settings-banner').style.display='none'">&times;</button>
 </div>
 
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
@@ -297,11 +300,11 @@
   <div class="setting-group">
     <h3>Standalone App</h3>
     <div style="display:flex;align-items:center;gap:10px">
-      <label class="toggle">
+      <label class="toggle toggle-companion">
         <input type="checkbox" id="companion-toggle" checked onchange="onCompanionToggle()">
         <span class="slider"></span>
       </label>
-      <span id="companion-status" style="font-size:13px;font-weight:500;color:#4a4">Enabled</span>
+      <span id="companion-status" style="font-size:13px;font-weight:500;color:#3a3">Enabled</span>
     </div>
     <div id="companion-warn" style="display:none;font-size:12px;color:#d29922;background:#2a2a1a;border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.5">
       Companion app will be uninstalled on next reboot. Notifications fall back to shell.
@@ -679,8 +682,11 @@ function saveConfig() {
   document.getElementById('settings-banner').style.display = 'none';
   document.getElementById('status').textContent = 'Configuration saved \u2713';
   if (!companionOn) {
-    document.getElementById('reboot-banner').style.display = 'block';
-    document.getElementById('reboot-btn').style.display = 'block';
+    // Delay reboot banner so user sees "saved" first, then reboot prompt
+    setTimeout(function() {
+      document.getElementById('reboot-banner').style.display = 'block';
+      document.getElementById('reboot-btn').style.display = 'block';
+    }, 500);
   }
 }
 
