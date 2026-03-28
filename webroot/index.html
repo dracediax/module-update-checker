@@ -712,8 +712,10 @@ function renderModuleCard(mod, list) {
           '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + mid + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'CI builds</label>' : '') +
       '</div>' +
-      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS module.prop reports kernel version (e.g. 2.0.0), not module release version. ' +
-        (cachedRelTag ? 'Tracking via installed tag: ' + escapeHtml(cachedRelTag) : 'Install via MUC to enable accurate tracking.') + '</div>' : '') +
+      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS installs as <b>' + escapeHtml(mod.version) + '</b> (kernel version)' +
+        (cachedRelTag ? ' \u00b7 Release: <b>' + escapeHtml(cachedRelTag) + '</b> \u00b7 Tracked via cached tag'
+                      : ' \u00b7 Can\u2019t match to release version \u00b7 Install via MUC to track accurately') +
+        '</div>' : '') +
       '<div class="mod-menu" id="menu-' + mid + '">' +
         '<div class="mod-menu-label">Backup</div>' +
         '<div id="upd-status-' + mid + '" style="margin-top:4px"></div>' +
