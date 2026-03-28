@@ -353,9 +353,9 @@
       <div class="setting-info">
         <b>What you get with a token:</b><br>
         - API rate limit increases from <b>60 to 5,000 requests/hour</b><br>
-        - <b>CI/nightly build detection</b> — checks GitHub Actions for modules that publish builds via CI instead of releases<br>
-        - <b>CI artifact downloads</b> — install nightly builds directly from the WebUI<br>
-        - Per-module "Mute CI notifications" toggle becomes available<br><br>
+        - <b>CI build detection</b> — checks GitHub Actions artifacts alongside releases and pre-releases<br>
+        - <b>CI artifact downloads</b> — install CI builds directly from the WebUI<br>
+        - Per-module toggle to include/exclude CI builds<br><br>
         The module works without a token — you just won't see CI builds.<br><br>
         <b>How to get a token:</b><br>
         1. Go to <a href="https://github.com/settings/tokens">github.com/settings/tokens</a><br>
@@ -1232,25 +1232,40 @@ function updateModule(modId, assetUrl, btn) {
 
   // Step 1: Download
   setTimeout(function() {
-    var dlResult = exec("curl -Lf --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
-    if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
+    // Write download script to avoid exec() output/timeout issues
+    var dlScript = '/data/local/tmp/muc_dl.sh';
+    var dlLog = '/data/local/tmp/muc_dl.log';
+    var curlCmd = "curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w '%{http_code}' '" + assetUrl + "'";
+    exec("echo '#!/system/bin/sh\n" + curlCmd.replace(/'/g, "'\\''") + " > " + dlLog + " 2>&1; echo $? >> " + dlLog + "' > " + dlScript + " && chmod +x " + dlScript);
+    var dlResult = exec("sh " + dlScript + " 2>&1; cat " + dlLog + " 2>/dev/null | tr '\\n' '|'");
+    var dlParts = dlResult ? dlResult.split('|') : [];
+    var httpCode = dlParts[0] || '?';
+    var exitCode = dlParts[1] || '?';
+    debugLog.push({ update: modId, step: 'download', url: assetUrl.substring(0, 80), httpCode: httpCode, exitCode: exitCode, raw: dlResult ? dlResult.substring(0, 200) : '(empty)' });
+    exec("rm -f " + dlScript + " " + dlLog);
+
+    // Check if download succeeded
+    var fileExists = exec("[ -f " + zipPath + " ] && stat -c %s " + zipPath + " 2>/dev/null | tr -d '\\n'");
+    if (!fileExists || fileExists === '0') {
       btn.textContent = btnLabel;
       btn.className = btnClass;
       btn.disabled = false;
-      if (statusEl) statusEl.textContent = 'Download failed';
-      debugLog.push({ update: modId, step: 'download', error: dlResult });
+      if (statusEl) statusEl.textContent = 'Download failed (HTTP ' + httpCode + ', exit ' + exitCode + ')';
       exec("rm -f " + zipPath);
       return;
     }
+    debugLog.push({ update: modId, step: 'download_ok', size: fileExists });
 
     // Verify downloaded file is a valid zip (not an HTML error page)
     var fileCheck = exec("[ -f " + zipPath + " ] && head -c 2 " + zipPath + " | od -A n -t x1 | tr -d ' \\n'");
     if (fileCheck !== '504b') {
+      // Show what we actually got (first 100 chars)
+      var fileHead = exec("head -c 100 " + zipPath + " 2>/dev/null | tr -d '\\0'");
       btn.textContent = btnLabel;
       btn.className = btnClass;
       btn.disabled = false;
       if (statusEl) statusEl.textContent = 'Download invalid (not a zip)';
-      debugLog.push({ update: modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck });
+      debugLog.push({ update: modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck, head: fileHead ? fileHead.substring(0, 100) : '' });
       exec("rm -f " + zipPath);
       return;
     }
@@ -1604,6 +1619,34 @@ function showDebug() {
     }
   }
   html += dbgSection('NOTIFICATIONS', s3);
+
+  // Download/Install log
+  var sDl = '';
+  var dlLogs = [];
+  for (var di = 0; di < debugLog.length; di++) {
+    if (debugLog[di].update || debugLog[di].updateAll) dlLogs.push(debugLog[di]);
+  }
+  if (dlLogs.length === 0) {
+    sDl = '<span class="dbg-dim">No download attempts this session</span>\n';
+  } else {
+    for (var dli = 0; dli < dlLogs.length; dli++) {
+      var d = dlLogs[dli];
+      var id = d.update || d.updateAll || '?';
+      var step = d.step || '?';
+      var info = '';
+      if (d.httpCode) info += 'HTTP ' + d.httpCode + ' ';
+      if (d.exitCode) info += 'exit ' + d.exitCode + ' ';
+      if (d.size) info += d.size + ' bytes ';
+      if (d.innerZip) info += d.innerZip + ' ';
+      if (d.result) info += d.result.substring(0, 60) + ' ';
+      if (d.error) info += d.error.substring(0, 60) + ' ';
+      if (d.raw) info += d.raw.substring(0, 60);
+      if (d.head) info += ' head: ' + d.head.substring(0, 40);
+      var cls = d.error ? 'dbg-err' : (d.step === 'download_ok' || d.step === 'ksud_install' ? 'dbg-ok' : 'dbg-dim');
+      sDl += dbgLine(id + ' / ' + step, info.trim(), cls);
+    }
+  }
+  html += dbgSection('DOWNLOADS', sDl);
 
   // Update History
   var s4 = '';
