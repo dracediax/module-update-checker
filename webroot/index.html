@@ -686,9 +686,12 @@ function renderModuleCard(mod, list) {
   card.setAttribute('data-name', mod.name.toLowerCase());
   var mid = escapeAttr(mod.id);
   // Check if this module was installed from a CI build
-  var isCiBuild = !!exec("grep -qx '" + mod.id + "' /data/adb/muc/ci_installed 2>/dev/null && echo 1 | tr -d '\\n'");
+  var ciLine = exec("grep '^" + mod.id + "|' /data/adb/muc/ci_installed 2>/dev/null | head -1 | tr -d '\\n'");
+  var isCiBuild = !!ciLine;
+  var ciArtifactName = isCiBuild ? ciLine.split('|')[1] || '' : '';
   var verStyle = isCiBuild ? ' style="color:var(--ci-label)"' : '';
-  var verSuffix = isCiBuild ? ' (CI)' : '';
+  var verSuffix = isCiBuild ? ' (CI' + (ciArtifactName ? ': ' + escapeHtml(ciArtifactName) : '') + ')' : '';
+  var isSusfs = mod.id === 'susfs4ksu';
   card.innerHTML =
     '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
     '<div class="module-info">' +
@@ -708,6 +711,7 @@ function renderModuleCard(mod, list) {
           '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + mid + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'CI builds</label>' : '') +
       '</div>' +
+      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS module.prop reports kernel SUSFS version (e.g. 2.0.0), not the module release version (e.g. v1.5.2+) \u2014 version comparison will be inaccurate</div>' : '') +
       '<div class="mod-menu" id="menu-' + mid + '">' +
         '<div class="mod-menu-label">Backup</div>' +
         '<div id="upd-status-' + mid + '" style="margin-top:4px"></div>' +
@@ -1093,23 +1097,30 @@ function checkNow() {
 
     // CI update (amber) — shown alongside release/pre-release
     if (hasCiUpdate && !ciMuted) {
-      if (!hasReleaseUpdate && !hasPreUpdate) {
-        updates++;
-        updateNames.push(mod.name + ': ' + ciLatest);
-        if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
-      }
-      var ciLabel = 'CI: ' + escapeHtml(ciLatest);
-      var ciInfoId = 'ci-date-' + t.id;
-      if (ciDate) ciLabel += ' <button class="ci-info-btn" onclick="var e=document.getElementById(\'' + ciInfoId + '\');e.style.display=e.style.display===\'none\'?\'block\':\'none\'">\u24d8</button>';
-      badgeHtml += '<div style="margin-top:6px;margin-bottom:4px"><span class="ci-version">' + ciLabel + '</span>';
-      if (ciDate) badgeHtml += '<div id="' + ciInfoId + '" style="display:none;font-size:11px;color:var(--fg4);margin-top:2px">Built: ' + escapeHtml(ciDate) + '</div>';
-      badgeHtml += '</div>';
-      if (ciAsset && ghToken) {
-        badgeHtml += '<button class="btn-update-ci" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
-      } else if (!ghToken) {
-        badgeHtml += '<div style="margin-top:4px"><span style="color:var(--warn);font-size:11px">token required</span></div>';
-      } else {
-        badgeHtml += '<div style="margin-top:4px"><span style="color:var(--fg5);font-size:11px">no artifact</span></div>';
+      // Check if this CI build is already installed
+      var installedCiLine = exec("grep '^" + t.id + "|' /data/adb/muc/ci_installed 2>/dev/null | head -1 | tr -d '\\n'");
+      var installedCiName = installedCiLine ? installedCiLine.split('|')[1] || '' : '';
+      var ciAlreadyInstalled = installedCiName && installedCiName === ciLatest;
+
+      if (!ciAlreadyInstalled) {
+        if (!hasReleaseUpdate && !hasPreUpdate) {
+          updates++;
+          updateNames.push(mod.name + ': ' + ciLatest);
+          if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
+        }
+        var ciLabel = 'CI: ' + escapeHtml(ciLatest);
+        var ciInfoId = 'ci-date-' + t.id;
+        if (ciDate) ciLabel += ' <button class="ci-info-btn" onclick="var e=document.getElementById(\'' + ciInfoId + '\');e.style.display=e.style.display===\'none\'?\'block\':\'none\'">\u24d8</button>';
+        badgeHtml += '<div style="margin-top:6px;margin-bottom:4px"><span class="ci-version">' + ciLabel + '</span>';
+        if (ciDate) badgeHtml += '<div id="' + ciInfoId + '" style="display:none;font-size:11px;color:var(--fg4);margin-top:2px">Built: ' + escapeHtml(ciDate) + '</div>';
+        badgeHtml += '</div>';
+        if (ciAsset && ghToken) {
+          badgeHtml += '<button class="btn-update-ci" data-ci-name="' + escapeAttr(ciLatest) + '" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
+        } else if (!ghToken) {
+          badgeHtml += '<div style="margin-top:4px"><span style="color:var(--warn);font-size:11px">token required</span></div>';
+        } else {
+          badgeHtml += '<div style="margin-top:4px"><span style="color:var(--fg5);font-size:11px">no artifact</span></div>';
+        }
       }
     }
 
@@ -1216,6 +1227,7 @@ function updateModule(modId, assetUrl, btn) {
   var origClass = btn.className;
   var isCi = origClass.indexOf('btn-update-ci') !== -1;
   var isPre = origClass.indexOf('btn-update-pre') !== -1;
+  var ciName = isCi ? (btn.getAttribute('data-ci-name') || 'ci') : '';
   var btnClass = isCi ? 'btn-update-ci' : (isPre ? 'btn-update-pre' : 'btn-update');
   var btnLabel = isCi ? '\u2191 Update to CI' : (isPre ? '\u2191 Update to Pre-release' : '\u2191 Update');
   btn.disabled = true;
@@ -1337,18 +1349,19 @@ function updateModule(modId, assetUrl, btn) {
       // Step 3: Cleanup, mark CI install, show result
       setTimeout(function() {
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        // Mark CI install in persistent file (survives module dir replacement on reboot)
+        // Mark CI install in persistent file (id|artifact_name)
         if (isCi) {
-          exec("grep -qx '" + modId + "' /data/adb/muc/ci_installed 2>/dev/null || echo '" + modId + "' >> /data/adb/muc/ci_installed");
+          exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+          exec("echo '" + modId + "|" + ciName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
-          exec("grep -v '^" + modId + "$' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+          exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
         }
         // Update version display to show CI tag immediately
         var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
         if (verEl) {
           var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || modName;
           var verSpanStyle = isCi ? ' style="color:var(--ci-label)"' : '';
-          var verSuffix = isCi ? ' (CI)' : '';
+          var verSuffix = isCi ? ' (CI: ' + escapeHtml(ciName) + ')' : '';
           var badgeSpan = document.getElementById('upd-' + modId);
           var savedBadge = badgeSpan ? badgeSpan.outerHTML : '';
           verEl.innerHTML = '<span' + verSpanStyle + '>' + escapeHtml(freshVer) + verSuffix + '</span> \u00b7 ' + escapeHtml(modId) + ' ' + savedBadge;
@@ -1531,11 +1544,13 @@ function updateAll() {
         }
 
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        // Mark CI install in persistent file
+        // Mark CI install in persistent file (id|artifact_name)
+        var bCiName = item.btn.getAttribute('data-ci-name') || 'ci';
         if (bc === 'btn-update-ci') {
-          exec("grep -qx '" + item.modId + "' /data/adb/muc/ci_installed 2>/dev/null || echo '" + item.modId + "' >> /data/adb/muc/ci_installed");
+          exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+          exec("echo '" + item.modId + "|" + bCiName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
-          exec("grep -v '^" + item.modId + "$' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+          exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
         }
         item.btn.textContent = '\u2713 ' + item.modName + ' \u2014 Installed';
         item.btn.className = bc + ' done';
