@@ -806,10 +806,8 @@ function autoSaveSettings() {
   if (companionChanged) {
     document.getElementById('reboot-banner').style.display = 'block';
     document.getElementById('reboot-btn').style.display = 'block';
-  } else {
-    document.getElementById('reboot-banner').style.display = 'none';
-    document.getElementById('reboot-btn').style.display = 'none';
   }
+  // Don't hide reboot banner here — it may be showing from a module install
 }
 
 function loadCachedUpdates() {
@@ -1237,7 +1235,7 @@ function updateModule(modId, assetUrl, btn) {
   var isCi = origClass.indexOf('btn-update-ci') !== -1;
   var isPre = origClass.indexOf('btn-update-pre') !== -1;
   var ciName = isCi ? (btn.getAttribute('data-ci-name') || 'ci') : '';
-  var relTag = btn.getAttribute('data-rel-tag') || ciName || '';
+  var relTag = btn.getAttribute('data-rel-tag') || '';
   var btnClass = isCi ? 'btn-update-ci' : (isPre ? 'btn-update-pre' : 'btn-update');
   var btnLabel = isCi ? '\u2191 Update to CI' : (isPre ? '\u2191 Update to Pre-release' : '\u2191 Update');
   btn.disabled = true;
@@ -1356,9 +1354,10 @@ function updateModule(modId, assetUrl, btn) {
         }
       }
 
-      // Step 3: Cleanup, mark CI install, show result
+      // Step 3: Cleanup, mark install, show result
       setTimeout(function() {
-        exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
+        try {
+        exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract && rm -f /data/local/tmp/muc_repacked.zip");
         // Mark CI install in persistent file (id|artifact_name)
         if (isCi) {
           exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
@@ -1371,7 +1370,7 @@ function updateModule(modId, assetUrl, btn) {
           exec("grep -v '^" + modId + "|' /data/adb/muc/version_override > /data/adb/muc/version_override.tmp 2>/dev/null; mv /data/adb/muc/version_override.tmp /data/adb/muc/version_override 2>/dev/null");
           exec("echo '" + modId + "|" + relTag.replace(/'/g, "") + "' >> /data/adb/muc/version_override");
         }
-        // Update version display to show CI tag immediately
+        // Update version display
         var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
         if (verEl) {
           var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || modName;
@@ -1396,6 +1395,13 @@ function updateModule(modId, assetUrl, btn) {
 
         document.getElementById('reboot-banner').style.display = 'block';
         document.getElementById('reboot-btn').style.display = 'block';
+        } catch(e) {
+          debugLog.push({ update: modId, step: 'step3_error', error: e.message });
+          btn.textContent = '\u2713 Installed (UI error)';
+          btn.className = btnClass + ' done';
+          document.getElementById('reboot-banner').style.display = 'block';
+          document.getElementById('reboot-btn').style.display = 'block';
+        }
       }, 10);
     }, 10);
   }, 10);
@@ -1568,7 +1574,7 @@ function updateAll() {
           exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
         }
         // Cache release tag for version mismatch modules
-        var bRelTag = item.btn.getAttribute('data-rel-tag') || bCiName || '';
+        var bRelTag = item.btn.getAttribute('data-rel-tag') || '';
         if (bRelTag) {
           exec("grep -v '^" + item.modId + "|' /data/adb/muc/version_override > /data/adb/muc/version_override.tmp 2>/dev/null; mv /data/adb/muc/version_override.tmp /data/adb/muc/version_override 2>/dev/null");
           exec("echo '" + item.modId + "|" + bRelTag.replace(/'/g, "") + "' >> /data/adb/muc/version_override");
