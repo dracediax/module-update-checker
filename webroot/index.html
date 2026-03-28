@@ -692,6 +692,7 @@ function renderModuleCard(mod, list) {
   var verStyle = isCiBuild ? ' style="color:var(--ci-label)"' : '';
   var verSuffix = isCiBuild ? ' (CI' + (ciArtifactName ? ': ' + escapeHtml(ciArtifactName) : '') + ')' : '';
   var isSusfs = mod.id === 'susfs4ksu';
+  var cachedRelTag = exec("grep '^" + mod.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
   card.innerHTML =
     '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
     '<div class="module-info">' +
@@ -711,7 +712,8 @@ function renderModuleCard(mod, list) {
           '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + mid + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'CI builds</label>' : '') +
       '</div>' +
-      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS module.prop reports kernel SUSFS version (e.g. 2.0.0), not the module release version (e.g. v1.5.2+) \u2014 version comparison will be inaccurate</div>' : '') +
+      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS module.prop reports kernel version (e.g. 2.0.0), not module release version. ' +
+        (cachedRelTag ? 'Tracking via installed tag: ' + escapeHtml(cachedRelTag) : 'Install via MUC to enable accurate tracking.') + '</div>' : '') +
       '<div class="mod-menu" id="menu-' + mid + '">' +
         '<div class="mod-menu-label">Backup</div>' +
         '<div id="upd-status-' + mid + '" style="margin-top:4px"></div>' +
@@ -1069,8 +1071,11 @@ function checkNow() {
     }
 
     var badgeHtml = '';
-    var hasReleaseUpdate = releaseLatest && isNewer(mod.version, releaseLatest);
-    var hasPreUpdate = preLatest && isNewer(mod.version, preLatest);
+    // For modules with version mismatch (e.g. SUSFS), use cached release tag instead of module.prop
+    var cachedRelTag = exec("grep '^" + t.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
+    var compareVer = cachedRelTag || mod.version;
+    var hasReleaseUpdate = releaseLatest && isNewer(compareVer, releaseLatest);
+    var hasPreUpdate = preLatest && isNewer(compareVer, preLatest);
     var hasCiUpdate = !!ciLatest;
     var hasAnyUpdate = hasReleaseUpdate || hasPreUpdate || (hasCiUpdate && !ciMuted);
 
@@ -1081,7 +1086,7 @@ function checkNow() {
       cacheLines.push(t.id + '|' + mod.version + '|' + releaseLatest + '|' + (releaseAsset || ''));
       badgeHtml += '<span class="update-available">\u2191 ' + escapeHtml(releaseLatest) + '</span>';
       if (releaseAsset) {
-        badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
+        badgeHtml += '<button class="btn-update" data-rel-tag="' + escapeAttr(releaseLatest) + '" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
       badgeHtml += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(t.repo) + '\', this)">View changelog</button>';
     }
@@ -1091,7 +1096,7 @@ function checkNow() {
       if (!hasReleaseUpdate) { updates++; updateNames.push(mod.name + ': ' + preLatest); }
       badgeHtml += '<div style="margin-top:6px"><span class="pre-version">Pre-release: ' + escapeHtml(preLatest) + '</span></div>';
       if (preAsset) {
-        badgeHtml += '<button class="btn-update-pre" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(preAsset) + '\', this)">\u2191 Update to ' + escapeHtml(preLatest) + '</button>';
+        badgeHtml += '<button class="btn-update-pre" data-rel-tag="' + escapeAttr(preLatest) + '" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(preAsset) + '\', this)">\u2191 Update to ' + escapeHtml(preLatest) + '</button>';
       }
     }
 
@@ -1228,6 +1233,7 @@ function updateModule(modId, assetUrl, btn) {
   var isCi = origClass.indexOf('btn-update-ci') !== -1;
   var isPre = origClass.indexOf('btn-update-pre') !== -1;
   var ciName = isCi ? (btn.getAttribute('data-ci-name') || 'ci') : '';
+  var relTag = btn.getAttribute('data-rel-tag') || ciName || '';
   var btnClass = isCi ? 'btn-update-ci' : (isPre ? 'btn-update-pre' : 'btn-update');
   var btnLabel = isCi ? '\u2191 Update to CI' : (isPre ? '\u2191 Update to Pre-release' : '\u2191 Update');
   btn.disabled = true;
@@ -1355,6 +1361,11 @@ function updateModule(modId, assetUrl, btn) {
           exec("echo '" + modId + "|" + ciName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
           exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+        }
+        // Cache installed release tag for version mismatch modules (e.g. SUSFS)
+        if (relTag) {
+          exec("grep -v '^" + modId + "|' /data/adb/muc/version_override > /data/adb/muc/version_override.tmp 2>/dev/null; mv /data/adb/muc/version_override.tmp /data/adb/muc/version_override 2>/dev/null");
+          exec("echo '" + modId + "|" + relTag.replace(/'/g, "") + "' >> /data/adb/muc/version_override");
         }
         // Update version display to show CI tag immediately
         var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
@@ -1551,6 +1562,12 @@ function updateAll() {
           exec("echo '" + item.modId + "|" + bCiName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
           exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+        }
+        // Cache release tag for version mismatch modules
+        var bRelTag = item.btn.getAttribute('data-rel-tag') || bCiName || '';
+        if (bRelTag) {
+          exec("grep -v '^" + item.modId + "|' /data/adb/muc/version_override > /data/adb/muc/version_override.tmp 2>/dev/null; mv /data/adb/muc/version_override.tmp /data/adb/muc/version_override 2>/dev/null");
+          exec("echo '" + item.modId + "|" + bRelTag.replace(/'/g, "") + "' >> /data/adb/muc/version_override");
         }
         item.btn.textContent = '\u2713 ' + item.modName + ' \u2014 Installed';
         item.btn.className = bc + ' done';
