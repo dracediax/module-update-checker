@@ -698,9 +698,11 @@ function renderModuleCard(mod, list) {
   if (isCiBuild && ciArtifactName) {
     displayVer = stripArtifactPrefix(ciArtifactName) + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
+    showId = false;
   } else if (isCiBuild) {
     displayVer = mod.version + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
+    showId = false;
   }
   // SUSFS: keep kernel version as display, warning handles the rest
   card.innerHTML =
