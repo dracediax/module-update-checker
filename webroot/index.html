@@ -691,23 +691,24 @@ function renderModuleCard(mod, list) {
   var ciArtifactName = isCiBuild ? ciLine.split('|')[1] || '' : '';
   var isSusfs = mod.id === 'susfs4ksu';
   var cachedRelTag = exec("grep '^" + mod.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
-  // Determine displayed version: prefer cached names over module.prop for CI/mismatch modules
+  // Determine displayed version
   var displayVer = mod.version;
   var verStyle = '';
+  var showId = true;
   if (isCiBuild && ciArtifactName) {
     displayVer = ciArtifactName + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
+    showId = false;
   } else if (isCiBuild) {
     displayVer = mod.version + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
-  } else if (isSusfs && cachedRelTag) {
-    displayVer = cachedRelTag;
   }
+  // SUSFS: keep kernel version as display, warning handles the rest
   card.innerHTML =
     '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
     '<div class="module-info">' +
       '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
-      '<div class="module-version"><span' + verStyle + '>' + escapeHtml(displayVer) + '</span> \u00b7 ' + escapeHtml(mod.id) +
+      '<div class="module-version"><span' + verStyle + '>' + escapeHtml(displayVer) + '</span>' + (showId ? ' \u00b7 ' + escapeHtml(mod.id) : '') +
         ' <span id="upd-' + mid + '"></span></div>' +
       '<div class="module-repo">' +
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
