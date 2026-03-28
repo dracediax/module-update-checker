@@ -1,6 +1,6 @@
 {
-  "version": "v6.6",
-  "versionCode": 149,
-  "zipUrl": "https://github.com/dracediax/module-update-checker/releases/download/v6.6/module-update-checker-v6.6.zip",
-  "changelog": "https://github.com/dracediax/module-update-checker/releases/tag/v6.6"
+  "version": "v6.6.1",
+  "versionCode": 150,
+  "zipUrl": "https://github.com/dracediax/module-update-checker/releases/download/v6.6.1/module-update-checker-v6.6.1.zip",
+  "changelog": "https://github.com/dracediax/module-update-checker/releases/tag/v6.6.1"
 }
