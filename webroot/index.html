@@ -361,7 +361,7 @@
         1. Go to <a href="https://github.com/settings/tokens">github.com/settings/tokens</a><br>
         2. Click "Generate new token (classic)"<br>
         3. Name it (e.g. "module-update-checker")<br>
-        4. Leave all scope checkboxes <b>unchecked</b> — no permissions needed<br>
+        4. Check <b>public_repo</b> scope (required for CI artifact downloads)<br>
         5. Generate and paste it here
       </div>
       <div class="setting-warn">
@@ -1232,17 +1232,19 @@ function updateModule(modId, assetUrl, btn) {
 
   // Step 1: Download
   setTimeout(function() {
-    // Write download script to avoid exec() output/timeout issues
-    var dlScript = '/data/local/tmp/muc_dl.sh';
+    // Download via script to avoid exec() output/timeout issues
     var dlLog = '/data/local/tmp/muc_dl.log';
-    var curlCmd = "curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w '%{http_code}' '" + assetUrl + "'";
-    exec("echo '#!/system/bin/sh\n" + curlCmd.replace(/'/g, "'\\''") + " > " + dlLog + " 2>&1; echo $? >> " + dlLog + "' > " + dlScript + " && chmod +x " + dlScript);
-    var dlResult = exec("sh " + dlScript + " 2>&1; cat " + dlLog + " 2>/dev/null | tr '\\n' '|'");
-    var dlParts = dlResult ? dlResult.split('|') : [];
-    var httpCode = dlParts[0] || '?';
-    var exitCode = dlParts[1] || '?';
+    exec("rm -f " + dlLog + " " + zipPath);
+    var dlCmd = "curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w 'HTTP:%{http_code}' '" + assetUrl + "' > " + dlLog + " 2>&1; echo EXIT:$? >> " + dlLog;
+    exec(dlCmd);
+    var dlResult = exec("cat " + dlLog + " 2>/dev/null | tr '\\n' ' '");
+    var httpCode = '?'; var exitCode = '?';
+    var hm = dlResult ? dlResult.match(/HTTP:(\d+)/) : null;
+    var em = dlResult ? dlResult.match(/EXIT:(\d+)/) : null;
+    if (hm) httpCode = hm[1];
+    if (em) exitCode = em[1];
     debugLog.push({ update: modId, step: 'download', url: assetUrl.substring(0, 80), httpCode: httpCode, exitCode: exitCode, raw: dlResult ? dlResult.substring(0, 200) : '(empty)' });
-    exec("rm -f " + dlScript + " " + dlLog);
+    exec("rm -f " + dlLog);
 
     // Check if download succeeded
     var fileExists = exec("[ -f " + zipPath + " ] && stat -c %s " + zipPath + " 2>/dev/null | tr -d '\\n'");
@@ -1250,7 +1252,9 @@ function updateModule(modId, assetUrl, btn) {
       btn.textContent = btnLabel;
       btn.className = btnClass;
       btn.disabled = false;
-      if (statusEl) statusEl.textContent = 'Download failed (HTTP ' + httpCode + ', exit ' + exitCode + ')';
+      var errMsg = 'Download failed (HTTP ' + httpCode + ')';
+      if (httpCode === '403') errMsg = 'HTTP 403 — token needs public_repo scope for CI artifacts';
+      if (statusEl) statusEl.textContent = errMsg;
       exec("rm -f " + zipPath);
       return;
     }
@@ -1410,9 +1414,16 @@ function updateAll() {
     item.btn.className = bc + ' downloading';
 
     setTimeout(function() {
-      var dlResult = exec("curl -Lf --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " '" + item.assetUrl + "' 2>&1 && echo DL_OK");
-      if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
-        item.btn.textContent = 'Failed';
+      var bDlLog = '/data/local/tmp/muc_dl.log';
+      exec("rm -f " + bDlLog + " " + zipPath);
+      exec("curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w 'HTTP:%{http_code}' '" + item.assetUrl + "' > " + bDlLog + " 2>&1; echo EXIT:$? >> " + bDlLog);
+      var bDlResult = exec("cat " + bDlLog + " 2>/dev/null | tr '\\n' ' '");
+      exec("rm -f " + bDlLog);
+      var bFileExists = exec("[ -f " + zipPath + " ] && stat -c %s " + zipPath + " 2>/dev/null | tr -d '\\n'");
+      debugLog.push({ updateAll: item.modId, step: 'download', raw: bDlResult ? bDlResult.substring(0, 100) : '(empty)', size: bFileExists || '0' });
+      if (!bFileExists || bFileExists === '0') {
+        var bHm = bDlResult ? bDlResult.match(/HTTP:(\d+)/) : null;
+        item.btn.textContent = 'Failed' + (bHm && bHm[1] === '403' ? ' (scope)' : '');
         item.btn.className = bc;
         exec("rm -f " + zipPath);
         failed++;
