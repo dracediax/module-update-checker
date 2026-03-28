@@ -1072,10 +1072,14 @@ function checkNow() {
 
     var badgeHtml = '';
     // For modules with version mismatch (e.g. SUSFS), use cached release tag instead of module.prop
+    var VERSION_MISMATCH_IDS = { 'susfs4ksu': true };
+    var isVersionMismatch = VERSION_MISMATCH_IDS[t.id] || false;
     var cachedRelTag = exec("grep '^" + t.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
     var compareVer = cachedRelTag || mod.version;
-    var hasReleaseUpdate = releaseLatest && isNewer(compareVer, releaseLatest);
-    var hasPreUpdate = preLatest && isNewer(compareVer, preLatest);
+    // If version mismatch module with no cache — can't compare, always show latest
+    var versionUnknown = isVersionMismatch && !cachedRelTag;
+    var hasReleaseUpdate = versionUnknown ? !!releaseLatest : (releaseLatest && isNewer(compareVer, releaseLatest));
+    var hasPreUpdate = versionUnknown ? !!preLatest : (preLatest && isNewer(compareVer, preLatest));
     var hasCiUpdate = !!ciLatest;
     var hasAnyUpdate = hasReleaseUpdate || hasPreUpdate || (hasCiUpdate && !ciMuted);
 
@@ -1084,9 +1088,9 @@ function checkNow() {
       updates++;
       updateNames.push(mod.name + ': ' + releaseLatest);
       cacheLines.push(t.id + '|' + mod.version + '|' + releaseLatest + '|' + (releaseAsset || ''));
-      badgeHtml += '<span class="update-available">\u2191 ' + escapeHtml(releaseLatest) + '</span>';
+      badgeHtml += '<span class="update-available">' + (versionUnknown ? 'Latest: ' : '\u2191 ') + escapeHtml(releaseLatest) + '</span>';
       if (releaseAsset) {
-        badgeHtml += '<button class="btn-update" data-rel-tag="' + escapeAttr(releaseLatest) + '" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
+        badgeHtml += '<button class="btn-update" data-rel-tag="' + escapeAttr(releaseLatest) + '" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">' + (versionUnknown ? 'Install ' : '\u2191 Update to ') + escapeHtml(releaseLatest) + '</button>';
       }
       badgeHtml += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(t.repo) + '\', this)">View changelog</button>';
     }
