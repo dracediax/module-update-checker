@@ -333,8 +333,8 @@ ${mod_name}: ${latest}"
 
             # Extract asset URL for cache
             local asset_url=$(echo "$response" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/"browser_download_url": *"//;s/"//')
-            # Write to cache: id|latest|asset_url
-            echo "${mod_id}|${latest}|${asset_url}" >> "$UPDATE_CACHE"
+            # Write to cache: id|installed|latest|asset_url
+            echo "${mod_id}|${installed}|${latest}|${asset_url}" >> "$UPDATE_CACHE"
             log "  UPDATE: $installed -> $latest"
         else
             log "  up to date"
