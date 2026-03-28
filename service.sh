@@ -32,8 +32,13 @@ APP_DIR_EARLY="/data/data/com.dracediax.muc"
 if [ -d "$APP_DIR_EARLY" ] && [ -f "$MODDIR/webroot/index.html" ]; then
     cp "$MODDIR/webroot/index.html" "$APP_DIR_EARLY/webui.html" 2>/dev/null
     chmod 644 "$APP_DIR_EARLY/webui.html" 2>/dev/null
-    chown $(stat -c %u "$APP_DIR_EARLY") "$APP_DIR_EARLY/webui.html" 2>/dev/null
-    log "webroot copied early to companion app"
+    # Set ownership to app UID so WebView can read it
+    app_uid=$(stat -c %u "$APP_DIR_EARLY" 2>/dev/null || ls -ld "$APP_DIR_EARLY" | awk '{print $3}')
+    [ -n "$app_uid" ] && chown "$app_uid" "$APP_DIR_EARLY/webui.html" 2>/dev/null
+    # Restore SELinux context so WebView doesn't get denied
+    app_ctx=$(ls -Zd "$APP_DIR_EARLY" 2>/dev/null | grep -o 'u:[^ ]*')
+    [ -n "$app_ctx" ] && chcon "$app_ctx" "$APP_DIR_EARLY/webui.html" 2>/dev/null
+    log "webroot copied early to companion app (uid=$app_uid ctx=$app_ctx)"
 fi
 
 # Wait for network — ping GitHub up to 90s
