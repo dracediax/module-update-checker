@@ -13,6 +13,9 @@
     --card: #16213e; --card-tracked: #1a2a4a;
     --green: #2a6a2a; --green2: #1a5a1a; --red: #aa3333;
     --warn: #d29922; --warn-bg: #2a2a1a; --update-bg: #4a3a1a; --update-fg: #ffaa33;
+    --ci-fg: #ffcc55; --ci-bg: #6a4a00; --ci-bg2: #7a5a10; --ci-label: #dd8800;
+    --pre-fg: #bb99ff; --pre-bg: #3a2a6a; --pre-bg2: #4a3a7a; --pre-label: #9966ff;
+    --settings-bg: #0f1a30;
   }
   .light {
     --bg: #f0f2f5; --bg2: #fff; --bg3: #e8eaed; --bg4: #f5f5f5;
@@ -22,6 +25,9 @@
     --card: #fff; --card-tracked: #eaf0fa;
     --green: #1a7a1a; --green2: #0a6a0a; --red: #cc3333;
     --warn: #996600; --warn-bg: #fff8e0; --update-bg: #fff0d8; --update-fg: #b86e00;
+    --ci-fg: #7a5500; --ci-bg: #fff0cc; --ci-bg2: #ffe8aa; --ci-label: #996600;
+    --pre-fg: #5533aa; --pre-bg: #f0e8ff; --pre-bg2: #e0d0ff; --pre-label: #6644bb;
+    --settings-bg: #e0e4ea;
   }
   .light .btn { color: #fff; }
   .light .btn-check { color: #fff; }
@@ -46,7 +52,7 @@
     background: var(--card); border-radius: 12px;
     padding: 14px 16px; margin-bottom: 10px;
     display: flex; align-items: center; gap: 12px;
-    border: 1px solid transparent;
+    border: 1px solid transparent; position: relative;
   }
   .module-card.tracked { background: var(--card-tracked); border-color: var(--border); }
   .module-card.hidden { display: none; }
@@ -54,10 +60,31 @@
   .module-options label { font-size: 11px; color: var(--fg5); cursor: pointer; display: flex; align-items: center; gap: 3px; }
   .module-options label.disabled { opacity: 0.35; pointer-events: none; }
   .module-options input { width: 14px; height: 14px; vertical-align: middle; }
-  .ci-version { color: #dd8800; font-size: 11px; font-weight: 600; }
+  .ci-version { color: var(--ci-label); font-size: 11px; font-weight: 600; }
+  .ci-info-btn {
+    background: none; border: none; color: var(--ci-label); font-size: 12px;
+    cursor: pointer; padding: 0 2px; opacity: 0.7; vertical-align: middle;
+  }
+  .ci-info-btn:active { opacity: 1; }
+  .btn-update-ci {
+    display: block; background: var(--ci-bg); color: var(--ci-fg);
+    font-size: 13px; padding: 8px 16px; border-radius: 8px;
+    border: none; cursor: pointer; margin-top: 8px; font-weight: 600;
+    width: 100%; text-align: center; letter-spacing: 0.5px;
+  }
+  .btn-update-ci:active { background: var(--ci-bg2); }
+  .btn-update-pre {
+    display: block; background: var(--pre-bg); color: var(--pre-fg);
+    font-size: 13px; padding: 8px 16px; border-radius: 8px;
+    border: none; cursor: pointer; margin-top: 8px; font-weight: 600;
+    width: 100%; text-align: center; letter-spacing: 0.5px;
+  }
+  .btn-update-pre:active { background: var(--pre-bg2); }
+  .pre-version { color: var(--pre-label); font-size: 11px; font-weight: 600; }
   .mod-menu-btn {
-    background: none; border: none; color: var(--fg5); font-size: 18px;
-    cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; opacity: 0.6;
+    background: none; border: none; color: var(--fg5); font-size: 16px;
+    cursor: pointer; padding: 4px 6px; line-height: 1; opacity: 0.5;
+    position: absolute; top: 8px; right: 8px;
   }
   .mod-menu-btn:active { opacity: 1; }
   .mod-menu {
@@ -215,7 +242,7 @@
   }
   .settings-toggle:active { background: var(--card); }
   .settings-panel {
-    display: none; background: var(--card); border: 1px solid var(--border);
+    display: none; background: var(--settings-bg); border: 1px solid var(--border);
     border-top: none; border-radius: 0 0 12px 12px; padding: 16px;
     margin-top: -4px;
   }
@@ -659,15 +686,11 @@ function renderModuleCard(mod, list) {
   card.setAttribute('data-name', mod.name.toLowerCase());
   var mid = escapeAttr(mod.id);
   card.innerHTML =
+    '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
     '<div class="module-info">' +
-      '<div style="display:flex;align-items:center;gap:6px">' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
-          '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
-            ' <span id="upd-' + mid + '"></span></div>' +
-        '</div>' +
-        '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
-      '</div>' +
+      '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
+      '<div class="module-version">' + escapeHtml(mod.version) + ' \u00b7 ' + escapeHtml(mod.id) +
+        ' <span id="upd-' + mid + '"></span></div>' +
       '<div class="module-repo">' +
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
                'value="' + escapeAttr(repo) + '" data-id="' + mid + '" class="repo-input" onblur="autoSaveConfig()">' +
@@ -931,31 +954,33 @@ function checkNow() {
     var ciMuted = t.ignoreCi || false;
     var releaseLatest = '';
     var releaseAsset = '';
+    var preLatest = '';
+    var preAsset = '';
     var ciLatest = '';
     var ciAsset = '';
     var ciDate = '';
 
-    // 1. Check releases
+    // 1a. Always check stable release
+    var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases/latest' | tr -d '\\n'");
+    trackApiCall();
+    if (result && result.length > 5) {
+      var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
+      if (tagMatch) releaseLatest = tagMatch[1];
+      var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
+      if (assetMatch) releaseAsset = assetMatch[1];
+    }
+
+    // 1b. If pre-release enabled, also check newest release (may be pre-release)
     if (t.preRelease) {
-      // Fetch recent releases — API returns newest first by creation date
-      // Use first entry (most recent) instead of version comparison to avoid
-      // false positives from old releases with higher version numbers (e.g. PIF v19.2)
-      var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases?per_page=5' | tr -d '\\n'");
+      var preResult = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases?per_page=1' | tr -d '\\n'");
       trackApiCall();
-      if (result && result.length > 5) {
-        var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
-        if (tagMatch) releaseLatest = tagMatch[1];
-        var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
-        if (assetMatch) releaseAsset = assetMatch[1];
-      }
-    } else {
-      var result = exec("curl -sf --connect-timeout 15" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/releases/latest' | tr -d '\\n'");
-      trackApiCall();
-      if (result && result.length > 5) {
-        var tagMatch = result.match(/"tag_name"\s*:\s*"([^"]*)"/);
-        if (tagMatch) releaseLatest = tagMatch[1];
-        var assetMatch = result.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
-        if (assetMatch) releaseAsset = assetMatch[1];
+      if (preResult && preResult.length > 5) {
+        var preTag = preResult.match(/"tag_name"\s*:\s*"([^"]*)"/);
+        var preAssetMatch = preResult.match(/"browser_download_url"\s*:\s*"([^"]*\.zip)"/);
+        if (preTag && preTag[1] !== releaseLatest) {
+          preLatest = preTag[1];
+          if (preAssetMatch) preAsset = preAssetMatch[1];
+        }
       }
     }
 
@@ -1007,7 +1032,7 @@ function checkNow() {
     }
 
     // No results at all
-    if (!releaseLatest && !ciLatest) {
+    if (!releaseLatest && !preLatest && !ciLatest) {
       errors++;
       if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no releases or CI builds</span>';
       idx++; setTimeout(checkNext, 10); return;
@@ -1038,10 +1063,12 @@ function checkNow() {
 
     var badgeHtml = '';
     var hasReleaseUpdate = releaseLatest && isNewer(mod.version, releaseLatest);
+    var hasPreUpdate = preLatest && isNewer(mod.version, preLatest);
     var hasCiUpdate = !!ciLatest;
+    var hasAnyUpdate = hasReleaseUpdate || hasPreUpdate || (hasCiUpdate && !ciMuted);
 
+    // Release update (green)
     if (hasReleaseUpdate) {
-      // Release update — counts for notification
       updates++;
       updateNames.push(mod.name + ': ' + releaseLatest);
       cacheLines.push(t.id + '|' + mod.version + '|' + releaseLatest + '|' + (releaseAsset || ''));
@@ -1050,38 +1077,37 @@ function checkNow() {
         badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
       }
       badgeHtml += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(t.repo) + '\', this)">View changelog</button>';
-    } else if (hasCiUpdate && !ciMuted) {
-      // CI build available and not muted — counts for notification
-      updates++;
-      updateNames.push(mod.name + ': ' + ciLatest);
-      if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
     }
 
-    // Show CI info only if not muted
+    // Pre-release update (purple) — only if different from stable
+    if (hasPreUpdate) {
+      if (!hasReleaseUpdate) { updates++; updateNames.push(mod.name + ': ' + preLatest); }
+      badgeHtml += '<div style="margin-top:6px"><span class="pre-version">Pre-release: ' + escapeHtml(preLatest) + '</span></div>';
+      if (preAsset) {
+        badgeHtml += '<button class="btn-update-pre" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(preAsset) + '\', this)">\u2191 Update to ' + escapeHtml(preLatest) + '</button>';
+      }
+    }
+
+    // CI update (amber) — shown alongside release/pre-release
     if (hasCiUpdate && !ciMuted) {
-      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span></div>';
+      if (!hasReleaseUpdate && !hasPreUpdate) {
+        updates++;
+        updateNames.push(mod.name + ': ' + ciLatest);
+        if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
+      }
+      var ciLabel = 'CI: ' + escapeHtml(ciLatest);
+      if (ciDate) ciLabel += ' <button class="ci-info-btn" onclick="alert(\'CI build: ' + escapeAttr(ciDate) + '\')" title="' + escapeAttr(ciDate) + '">\u24d8</button>';
+      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">' + ciLabel + '</span></div>';
       if (ciAsset && ghToken) {
-        badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
+        badgeHtml += '<button class="btn-update-ci" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken) {
         badgeHtml += '<div style="margin-top:4px"><span style="color:#d29922;font-size:11px">token required</span></div>';
       } else {
         badgeHtml += '<div style="margin-top:4px"><span style="color:var(--fg5);font-size:11px">no artifact</span></div>';
       }
-      // Show CI build date in module menu
-      if (ciDate) {
-        var menuEl = document.getElementById('menu-' + t.id);
-        if (menuEl) {
-          var ciInfo = document.createElement('div');
-          ciInfo.className = 'mod-menu-label';
-          ciInfo.style.marginTop = '8px';
-          ciInfo.innerHTML = 'CI build: ' + escapeHtml(ciDate);
-          menuEl.appendChild(ciInfo);
-        }
-      }
     }
 
-    if (hasReleaseUpdate || (hasCiUpdate && !ciMuted)) {
-      // Has update (release or unmuted CI)
+    if (hasAnyUpdate) {
       if (badge) {
         badge.innerHTML = badgeHtml;
       }
