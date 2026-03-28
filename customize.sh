@@ -33,4 +33,7 @@ if [ -f "/data/adb/muc/settings" ]; then
     fi
 fi
 
+# Clear update cache on install (cache format changed in v6.4.4)
+rm -f /data/adb/muc/update_cache
+
 ui_print "- Data directory: /data/adb/muc/"
