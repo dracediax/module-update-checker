@@ -402,15 +402,15 @@
         <input type="checkbox" id="companion-toggle" checked onchange="onCompanionToggle();autoSaveSettings()">
         <span class="slider"></span>
       </label>
-      <span id="companion-status" style="font-size:13px;font-weight:500;color:#3a3">Enabled</span>
+      <span id="companion-status" style="font-size:13px;font-weight:500;color:var(--green)">Enabled</span>
     </div>
-    <div id="companion-warn" style="display:none;font-size:12px;color:#d29922;background:#2a2a1a;border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.5">
+    <div id="companion-warn" style="display:none;font-size:12px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.5">
       Companion app will be uninstalled on next reboot. Notifications fall back to shell.
     </div>
     <div class="setting-info">
       Provides notification tap and direct access to MUC without KSU Manager. Long-press the app in your drawer to add to home screen.
     </div>
-    <div id="companion-reboot-hint" style="display:none;font-size:12px;color:#5588cc;margin-top:6px">
+    <div id="companion-reboot-hint" style="display:none;font-size:12px;color:var(--accent);margin-top:6px">
       Reboot to install the companion app.
     </div>
   </div>
@@ -603,7 +603,7 @@ function loadModules() {
         list.innerHTML = '<div class="loading">No modules found</div>';
       }
       loadCachedUpdates();
-      loadRollbackButtons();
+      // Rollback status loaded on-demand via cogwheel menu
       return;
     }
 
@@ -886,7 +886,6 @@ function escapeAttr(s) {
   return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// saveConfig removed — replaced by autoSaveConfig(), autoSaveSettings(), autoSaveToken()
 
 function checkNow() {
   var statusEl = document.getElementById('status');
@@ -1034,7 +1033,7 @@ function checkNow() {
     // No results at all
     if (!releaseLatest && !preLatest && !ciLatest) {
       errors++;
-      if (badge) badge.innerHTML = '<span style="color:#a55;font-size:11px">no releases or CI builds</span>';
+      if (badge) badge.innerHTML = '<span style="color:var(--red);font-size:11px">no releases or CI builds</span>';
       idx++; setTimeout(checkNext, 10); return;
     }
 
@@ -1104,7 +1103,7 @@ function checkNow() {
       if (ciAsset && ghToken) {
         badgeHtml += '<button class="btn-update-ci" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken) {
-        badgeHtml += '<div style="margin-top:4px"><span style="color:#d29922;font-size:11px">token required</span></div>';
+        badgeHtml += '<div style="margin-top:4px"><span style="color:var(--warn);font-size:11px">token required</span></div>';
       } else {
         badgeHtml += '<div style="margin-top:4px"><span style="color:var(--fg5);font-size:11px">no artifact</span></div>';
       }
@@ -1614,14 +1613,18 @@ function showDebug() {
   // Bug report button
   var reportHtml = '<div style="margin-top:16px;text-align:center">' +
     '<button class="btn" style="background:#333;font-size:13px;padding:10px" onclick="copyBugReport()">Copy Bug Report for GitHub</button>' +
-    '<div id="copy-feedback" style="font-size:11px;color:#888;margin-top:4px;min-height:16px"></div></div>';
+    '<div id="copy-feedback" style="font-size:11px;color:var(--fg4);margin-top:4px;min-height:16px"></div></div>';
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v6.4.1</div>' + html + reportHtml + '</div>';
+  var mucVer = exec("grep '^version=' /data/adb/modules/module-update-checker/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || '?';
+  var mucCode = exec("grep '^versionCode=' /data/adb/modules/module-update-checker/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || '?';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:var(--accent);font-size:14px;font-weight:600;margin-bottom:8px">' + escapeHtml(mucVer) + '</div>' + html + reportHtml + '</div>';
 }
 
 function copyBugReport() {
+  var mucVer = exec("grep '^version=' /data/adb/modules/module-update-checker/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || '?';
+  var mucCode = exec("grep '^versionCode=' /data/adb/modules/module-update-checker/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || '?';
   var report = '### MUC Bug Report\n\n';
-  report += '**Version:** v6.4.1 (versionCode 132)\n';
+  report += '**Version:** ' + mucVer + ' (versionCode ' + mucCode + ')\n';
   report += '**Device:** ' + exec("getprop ro.product.model | tr -d '\\n'") + '\n';
   report += '**Android:** ' + exec("getprop ro.build.version.release | tr -d '\\n'") + '\n';
   report += '**Kernel:** ' + exec("uname -r | tr -d '\\n'") + '\n';
@@ -1737,7 +1740,7 @@ function onCompanionToggle() {
   autoSaveSettings();
 }
 
-// onSettingsChanged removed — auto-save handles everything
+
 
 function toggleTokenBody() {
   var cb = document.getElementById('token-toggle');
@@ -1872,7 +1875,7 @@ function curlAuth() {
   return "";
 }
 
-// addShortcut removed — users can long-press app in drawer to add to home screen
+
 
 // Scroll focused input into view when keyboard opens
 document.addEventListener('focusin', function(e) {
@@ -1994,9 +1997,6 @@ function backupModule(modId) {
   exec("cp -r /data/adb/modules/" + modId + "/* /data/adb/muc/backups/" + modId + "/ 2>/dev/null");
 }
 
-function loadRollbackButtons() {
-  // Rollback status now loaded on-demand via cogwheel menu (toggleModMenu)
-}
 
 function rollbackModule(modId, el) {
   var exists = exec("[ -d /data/adb/muc/backups/" + modId + " ] && echo yes || echo no").trim();
