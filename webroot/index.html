@@ -974,13 +974,28 @@ function checkNow() {
           var artResult = exec("curl -sf --connect-timeout 10" + curlAuth() + " 'https://api.github.com/repos/" + t.repo + "/actions/runs/" + runIdMatch[1] + "/artifacts' | tr -d '\\n'");
           trackApiCall();
           if (artResult) {
-            var artUrlMatch = artResult.match(/"archive_download_url"\s*:\s*"([^"]*)"/);
-            var artNameMatch = artResult.match(/"name"\s*:\s*"([^"]*)"/);
-            if (artUrlMatch) {
-              ciAsset = artUrlMatch[1];
+            // Parse all artifacts — pick the best one (skip mappings, debug, github-pages, expired)
+            var allNames = artResult.match(/"name"\s*:\s*"([^"]*)"/g) || [];
+            var allUrls = artResult.match(/"archive_download_url"\s*:\s*"([^"]*)"/g) || [];
+            var allExpired = artResult.match(/"expired"\s*:\s*(true|false)/g) || [];
+            var bestName = '';
+            var bestUrl = '';
+            for (var ai = 0; ai < allNames.length; ai++) {
+              var aName = allNames[ai].replace(/"name"\s*:\s*"/, '').replace(/"$/, '');
+              var aUrl = allUrls[ai] ? allUrls[ai].replace(/"archive_download_url"\s*:\s*"/, '').replace(/"$/, '') : '';
+              var aExpired = allExpired[ai] ? allExpired[ai].indexOf('true') !== -1 : false;
+              // Skip expired, debug builds, mappings, github-pages
+              if (aExpired) continue;
+              if (/^(mappings|github-pages)$/i.test(aName)) continue;
+              if (/-debug$/i.test(aName)) continue;
+              bestName = aName;
+              bestUrl = aUrl;
+              break;
+            }
+            if (bestUrl) {
+              ciAsset = bestUrl;
               ciDate = runDateMatch[1].substring(0, 10);
-              // Use artifact name as CI version (e.g. "PlayIntegrityFix_v4.5-inject-s_238")
-              ciLatest = artNameMatch ? artNameMatch[1] : ('CI-' + ciDate);
+              ciLatest = bestName || ('CI-' + ciDate);
             }
           }
         } else if (runDateMatch && isCiOnly && !ghToken) {
@@ -1046,7 +1061,7 @@ function checkNow() {
     if (hasCiUpdate && !ciMuted) {
       badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span>';
       if (ciAsset && ghToken) {
-        badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
+        badgeHtml += '<br><button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:4px" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken) {
         badgeHtml += ' <span style="color:#d29922;font-size:11px">token required</span>';
       } else {
@@ -1295,9 +1310,13 @@ function collectPendingUpdates() {
 function showUpdateAllButton() {
   var count = collectPendingUpdates();
   var btn = document.getElementById('update-all-btn');
+  // Reset batch select state
+  document.getElementById('batch-bar').style.display = 'none';
+  var staleChecks = document.querySelectorAll('.batch-check');
+  for (var sc = 0; sc < staleChecks.length; sc++) staleChecks[sc].remove();
   if (count >= 1) {
     btn.style.display = 'block';
-    btn.textContent = '\u2191 Update (' + count + ') — tap to select';
+    btn.textContent = '\u2191 Update (' + count + ') \u2014 tap to select';
     btn.disabled = false;
   } else {
     btn.style.display = 'none';
