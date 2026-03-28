@@ -1,4 +1,4 @@
-<h1><img src="https://raw.githubusercontent.com/dracediax/module-update-checker/main/logo.png" width="32" align="absmiddle" alt=""> Module Update Checker</h1>
+<table><tr><td><img src="https://raw.githubusercontent.com/dracediax/module-update-checker/main/logo.png" width="36" alt=""></td><td><h1>Module Update Checker</h1></td></tr></table>
 
 A root module manager for **KernelSU**, **Magisk**, and **APatch** on Android 12+.
 Track, check, and update your modules from one place.
