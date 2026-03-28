@@ -696,9 +696,8 @@ function renderModuleCard(mod, list) {
   var verStyle = '';
   var showId = true;
   if (isCiBuild && ciArtifactName) {
-    displayVer = ciArtifactName + ' (CI)';
+    displayVer = stripArtifactPrefix(ciArtifactName) + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
-    showId = false;
   } else if (isCiBuild) {
     displayVer = mod.version + ' (CI)';
     verStyle = ' style="color:var(--ci-label)"';
@@ -724,8 +723,13 @@ function renderModuleCard(mod, list) {
           'CI builds</label>' : '') +
       '</div>' +
       (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 ' +
-        (cachedRelTag ? 'Current installed release: <b>' + escapeHtml(cachedRelTag) + '</b>'
-                      : 'SUSFS version (' + escapeHtml(mod.version) + ') is the kernel version, not the module release \u00b7 Install via MUC to track accurately') +
+        (cachedRelTag
+          ? 'Current installed release: <b>' + escapeHtml(cachedRelTag) + '</b> ' +
+            '<button class="ci-info-btn" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\'">\u24d8</button>' +
+            '<div style="display:none;font-size:11px;color:var(--fg4);margin-top:2px">SUSFS module.prop reports the kernel SUSFS version (' + escapeHtml(mod.version) + '), not the module release version. MUC tracks updates via the cached release tag instead.</div>'
+          : 'SUSFS version (' + escapeHtml(mod.version) + ') is the kernel version, not the module release ' +
+            '<button class="ci-info-btn" onclick="var e=this.nextElementSibling;e.style.display=e.style.display===\'none\'?\'block\':\'none\'">\u24d8</button>' +
+            '<div style="display:none;font-size:11px;color:var(--fg4);margin-top:2px">The version shown above is the SUSFS version compiled into your kernel. The module release uses a different numbering (e.g. v1.5.2+). Install the module via MUC so it can cache the release tag and track updates accurately.</div>') +
         '</div>' : '') +
       '<div class="mod-menu" id="menu-' + mid + '">' +
         '<div class="mod-menu-label">Backup</div>' +
@@ -901,6 +905,14 @@ function escapeHtml(s) {
   var d = document.createElement('div');
   d.appendChild(document.createTextNode(s));
   return d.innerHTML;
+}
+
+function stripArtifactPrefix(name) {
+  // "PlayIntegrityFix_v4.5-inject-s_238" → "v4.5-inject-s_238"
+  // "Vector-v2.0-3026-Release" → "v2.0-3026-Release"
+  // "release-1.5.2+_f372a05" → "1.5.2+_f372a05"
+  var m = name.match(/[_\-](v?\d[\d.].*)$/);
+  return m ? m[1] : name;
 }
 
 function escapeAttr(s) {
@@ -1391,7 +1403,7 @@ function updateModule(modId, assetUrl, btn) {
         if (verEl) {
           var newDisplayVer = '';
           if (isCi && ciName) {
-            newDisplayVer = ciName + ' (CI)';
+            newDisplayVer = stripArtifactPrefix(ciName) + ' (CI)';
           } else if (relTag) {
             newDisplayVer = relTag;
           }
