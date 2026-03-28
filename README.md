@@ -1,12 +1,20 @@
-# Module Update Checker <img src="https://raw.githubusercontent.com/dracediax/module-update-checker/main/logo.png" width="28" align="top">
+<h1><img src="https://raw.githubusercontent.com/dracediax/module-update-checker/main/logo.png" width="32" style="vertical-align:middle" alt=""> Module Update Checker</h1>
 
 A root module manager for **KernelSU**, **Magisk**, and **APatch** on Android 12+.
 Track, check, and update your modules from one place.
 
+<p>
+  <a href="https://github.com/dracediax/module-update-checker/releases"><img src="https://img.shields.io/github/v/release/dracediax/module-update-checker?style=for-the-badge&color=blue&label=Download" alt="Download"></a>
+  <img src="https://img.shields.io/badge/Android-12%2B-green?style=for-the-badge" alt="Android 12+">
+  <img src="https://img.shields.io/badge/KernelSU-✓-green?style=for-the-badge" alt="KernelSU">
+  <img src="https://img.shields.io/badge/Magisk-✓-green?style=for-the-badge" alt="Magisk">
+  <img src="https://img.shields.io/badge/APatch-✓-green?style=for-the-badge" alt="APatch">
+</p>
+
 ## Features
 
 - **Three-tier updates** — stable releases, pre-releases, and CI/nightly builds — shown simultaneously, each with its own color
-- **One-tap install** with automatic backup and rollback
+- **One-tap install** with automatic backup and rollback (restore via ⚙ menu)
 - **Batch updates** — select and update multiple modules at once
 - **19 pre-filled repos** — TrickyStore, PlayIntegrityFix, LSPosed, Vector, ReZygisk, Shamiko, SUSFS, and more
 - **Notifications** — configurable boot checks, 24h background polling, companion app or shell fallback
