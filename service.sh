@@ -27,6 +27,15 @@ rm -f "$LAST_NOTIF"
 while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done
 log "boot completed"
 
+# Copy webui early so companion app doesn't show blank screen on open
+APP_DIR_EARLY="/data/data/com.dracediax.muc"
+if [ -d "$APP_DIR_EARLY" ] && [ -f "$MODDIR/webroot/index.html" ]; then
+    cp "$MODDIR/webroot/index.html" "$APP_DIR_EARLY/webui.html" 2>/dev/null
+    chmod 644 "$APP_DIR_EARLY/webui.html" 2>/dev/null
+    chown $(stat -c %u "$APP_DIR_EARLY") "$APP_DIR_EARLY/webui.html" 2>/dev/null
+    log "webroot copied early to companion app"
+fi
+
 # Wait for network — ping GitHub up to 90s
 net_wait=0
 while [ "$net_wait" -lt 90 ]; do
