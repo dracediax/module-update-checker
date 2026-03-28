@@ -457,6 +457,7 @@ var KNOWN_REPOS = {
   'shamiko': 'LSPosed/LSPosed.github.io',
   'susfs4ksu': 'sidex15/susfs4ksu-module',
   'playintegrityfix': 'KOWX712/PlayIntegrityFix',
+  'IntegrityBox': 'MeowDump/Integrity-Box',
   'TA_utl': 'KOWX712/Tricky-Addon-Update-Target-List',
   'abootloop': 'Kolass2004/anti-bootloop-module',
   'dmverity-props-spoof': 'dracediax/dmverity-props-spoof',
@@ -559,8 +560,8 @@ function grepProp(filePath, key) {
 function discoverModules() {
   var found = {};
 
-  // Primary discovery: find all module.prop files, collapse to one line
-  var findResult = exec("find /data/adb -name module.prop -maxdepth 4 2>/dev/null | tr '\\n' '|'");
+  // Primary discovery: only scan active modules directory (not all of /data/adb)
+  var findResult = exec("find /data/adb/modules -name module.prop -maxdepth 2 2>/dev/null | tr '\\n' '|'");
   if (findResult && findResult.trim()) {
     var propFiles = findResult.trim().split('|');
     for (var f = 0; f < propFiles.length; f++) {
@@ -2214,6 +2215,23 @@ function deleteBackup(modId, el) {
 
 detectKsuPackage();
 loadSettings();
+
+// Clean stale backups for modules no longer installed
+(function() {
+  var backupList = exec("ls /data/adb/muc/backups/ 2>/dev/null | tr '\\n' '|'");
+  if (backupList && backupList.trim()) {
+    var dirs = backupList.trim().split('|');
+    for (var i = 0; i < dirs.length; i++) {
+      var d = dirs[i].trim();
+      if (!d) continue;
+      var exists = exec("[ -d /data/adb/modules/" + d + " ] && echo y || echo n").trim();
+      if (exists === 'n') {
+        exec("rm -rf /data/adb/muc/backups/" + d);
+      }
+    }
+  }
+})();
+
 loadModules();
 </script>
 </body>
