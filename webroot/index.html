@@ -1372,18 +1372,20 @@ function updateModule(modId, assetUrl, btn) {
           exec("grep -v '^" + modId + "|' /data/adb/muc/version_override > /data/adb/muc/version_override.tmp 2>/dev/null; mv /data/adb/muc/version_override.tmp /data/adb/muc/version_override 2>/dev/null");
           exec("echo '" + modId + "|" + relTag.replace(/'/g, "") + "' >> /data/adb/muc/version_override");
         }
-        // Update version display
-        var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
-        if (verEl) {
-          var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || modName;
-          var verSpanStyle = isCi ? ' style="color:var(--ci-label)"' : '';
-          var verSuffix = isCi ? ' (CI: ' + escapeHtml(ciName) + ')' : '';
-          var badgeSpan = document.getElementById('upd-' + modId);
-          var savedBadge = badgeSpan ? badgeSpan.outerHTML : '';
-          verEl.innerHTML = '<span' + verSpanStyle + '>' + escapeHtml(freshVer) + verSuffix + '</span> \u00b7 ' + escapeHtml(modId) + ' ' + savedBadge;
-        }
+        // Update button FIRST (before version display innerHTML destroys it)
         btn.textContent = '\u2713 ' + modName + ' \u2014 Installed';
         btn.className = btnClass + ' done';
+        // Update version display to show CI tag
+        var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
+        if (verEl && isCi) {
+          var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || modName;
+          var firstText = verEl.firstChild;
+          if (firstText && firstText.nodeType === 3) {
+            firstText.textContent = freshVer + ' (CI: ' + ciName + ') \u00b7 ' + modId + ' ';
+          } else if (firstText && firstText.nodeType === 1) {
+            firstText.innerHTML = '<span style="color:var(--ci-label)">' + escapeHtml(freshVer) + ' (CI: ' + escapeHtml(ciName) + ')</span>';
+          }
+        }
         if (statusEl) {
           statusEl.innerHTML = '<button class="mod-menu-action rollback" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback</button> ' +
             '<button class="mod-menu-action delete" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715 Delete</button>';
