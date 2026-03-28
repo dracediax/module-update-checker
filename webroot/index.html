@@ -1096,8 +1096,11 @@ function checkNow() {
         if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
       }
       var ciLabel = 'CI: ' + escapeHtml(ciLatest);
-      if (ciDate) ciLabel += ' <button class="ci-info-btn" onclick="alert(\'CI build: ' + escapeAttr(ciDate) + '\')" title="' + escapeAttr(ciDate) + '">\u24d8</button>';
-      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">' + ciLabel + '</span></div>';
+      var ciInfoId = 'ci-date-' + t.id;
+      if (ciDate) ciLabel += ' <button class="ci-info-btn" onclick="var e=document.getElementById(\'' + ciInfoId + '\');e.style.display=e.style.display===\'none\'?\'block\':\'none\'">\u24d8</button>';
+      badgeHtml += '<div style="margin-top:6px;margin-bottom:4px"><span class="ci-version">' + ciLabel + '</span>';
+      if (ciDate) badgeHtml += '<div id="' + ciInfoId + '" style="display:none;font-size:11px;color:var(--fg4);margin-top:2px">Built: ' + escapeHtml(ciDate) + '</div>';
+      badgeHtml += '</div>';
       if (ciAsset && ghToken) {
         badgeHtml += '<button class="btn-update-ci" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken) {
