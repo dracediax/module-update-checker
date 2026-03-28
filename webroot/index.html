@@ -457,12 +457,11 @@ var KNOWN_REPOS = {
   'shamiko': 'LSPosed/LSPosed.github.io',
   'susfs4ksu': 'sidex15/susfs4ksu-module',
   'playintegrityfix': 'KOWX712/PlayIntegrityFix',
-  'IntegrityBox': 'MeowDump/Integrity-Box',
   'TA_utl': 'KOWX712/Tricky-Addon-Update-Target-List',
   'abootloop': 'Kolass2004/anti-bootloop-module',
   'dmverity-props-spoof': 'dracediax/dmverity-props-spoof',
   'module-update-checker': 'dracediax/module-update-checker',
-  'zygisk_vector': 'JingMatrix/LSPosed',
+  'zygisk_vector': 'JingMatrix/Vector',
   'vector': 'JingMatrix/Vector',
   'stepless-volume': 'dracediax/stepless-volume',
   'wireless-adb': 'dracediax/wireless-adb'
@@ -471,6 +470,7 @@ var KNOWN_REPOS = {
 // Resolve ambiguous module IDs by checking the module name
 // Some modules share the same ID (e.g. tricky_store is used by both TrickyStore and TEESimulator)
 var NAME_REPOS = [
+  { match: /integrity\s*box/i, repo: 'MeowDump/Integrity-Box' },
   { match: /teesimulator.rs/i, repo: 'Enginex0/TEESimulator-RS' },
   { match: /tee\s*simulator/i, repo: 'JingMatrix/TEESimulator' },
   { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' },
@@ -480,7 +480,8 @@ var NAME_REPOS = [
 // Repos that use GitHub Actions CI builds instead of releases
 var CI_REPOS = {
   're-zero001/LSPosed-Irena': true,
-  'JingMatrix/Vector': true
+  'JingMatrix/Vector': true,
+  'Enginex0/TEESimulator-RS': true
 };
 
 function resolveRepo(id, name, dir) {
@@ -1040,18 +1041,23 @@ function checkNow() {
             var allExpired = artResult.match(/"expired"\s*:\s*(true|false)/g) || [];
             var bestName = '';
             var bestUrl = '';
+            var candidates = [];
             for (var ai = 0; ai < allNames.length; ai++) {
               var aName = allNames[ai].replace(/"name"\s*:\s*"/, '').replace(/"$/, '');
               var aUrl = allUrls[ai] ? allUrls[ai].replace(/"archive_download_url"\s*:\s*"/, '').replace(/"$/, '') : '';
               var aExpired = allExpired[ai] ? allExpired[ai].indexOf('true') !== -1 : false;
               // Skip expired, debug builds, mappings, github-pages
               if (aExpired) continue;
-              if (/^(mappings|github-pages)$/i.test(aName)) continue;
-              if (/-debug$/i.test(aName)) continue;
-              bestName = aName;
-              bestUrl = aUrl;
-              break;
+              if (/mapping/i.test(aName)) continue;
+              if (/debug/i.test(aName)) continue;
+              if (/^github-pages$/i.test(aName)) continue;
+              candidates.push({ name: aName, url: aUrl });
             }
+            // Prefer artifact with "release" in name, then first remaining
+            for (var ci2 = 0; ci2 < candidates.length; ci2++) {
+              if (/release/i.test(candidates[ci2].name)) { bestName = candidates[ci2].name; bestUrl = candidates[ci2].url; break; }
+            }
+            if (!bestName && candidates.length > 0) { bestName = candidates[0].name; bestUrl = candidates[0].url; }
             if (bestUrl) {
               ciAsset = bestUrl;
               ciDate = runDateMatch[1].substring(0, 10);
