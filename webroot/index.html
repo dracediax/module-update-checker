@@ -435,6 +435,7 @@ var KNOWN_REPOS = {
   'dmverity-props-spoof': 'dracediax/dmverity-props-spoof',
   'module-update-checker': 'dracediax/module-update-checker',
   'zygisk_vector': 'JingMatrix/LSPosed',
+  'vector': 'JingMatrix/Vector',
   'stepless-volume': 'dracediax/stepless-volume',
   'wireless-adb': 'dracediax/wireless-adb'
 };
@@ -450,7 +451,8 @@ var NAME_REPOS = [
 
 // Repos that use GitHub Actions CI builds instead of releases
 var CI_REPOS = {
-  're-zero001/LSPosed-Irena': true
+  're-zero001/LSPosed-Irena': true,
+  'JingMatrix/Vector': true
 };
 
 function resolveRepo(id, name, dir) {
@@ -995,12 +997,14 @@ function checkNow() {
     var freshVer = exec("grep '^version=' /data/adb/modules/" + t.id + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
     if (freshVer && mod) {
       mod.version = freshVer;
-      // Update displayed version in card
+      // Update displayed version text without destroying the badge span
       var verEl = document.querySelector('#card-' + escapeAttr(t.id) + ' .module-version');
       if (verEl) {
-        var badgeSpan = document.getElementById('upd-' + t.id);
-        var savedBadge = badgeSpan ? badgeSpan.outerHTML : '<span id="upd-' + escapeAttr(t.id) + '"></span>';
-        verEl.innerHTML = escapeHtml(freshVer) + ' \u00b7 ' + escapeHtml(mod.id) + ' ' + savedBadge;
+        // Only update text nodes before the badge span — don't replace innerHTML
+        var firstText = verEl.firstChild;
+        if (firstText && firstText.nodeType === 3) {
+          firstText.textContent = freshVer + ' \u00b7 ' + mod.id + ' ';
+        }
       }
     }
 
