@@ -1239,7 +1239,7 @@ function updateModule(modId, assetUrl, btn) {
     // Download via script to avoid exec() output/timeout issues
     var dlLog = '/data/local/tmp/muc_dl.log';
     exec("rm -f " + dlLog + " " + zipPath);
-    var dlCmd = "curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w 'HTTP:%{http_code}' '" + assetUrl + "' > " + dlLog + " 2>&1; echo EXIT:$? >> " + dlLog;
+    var dlCmd = "curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w '\\nHTTP:%{http_code}\\n' '" + assetUrl + "' > " + dlLog + " 2>&1; echo EXIT:$? >> " + dlLog;
     exec(dlCmd);
     var dlResult = exec("cat " + dlLog + " 2>/dev/null | tr '\\n' ' '");
     var httpCode = '?'; var exitCode = '?';
@@ -1318,7 +1318,7 @@ function updateModule(modId, assetUrl, btn) {
       }
 
       // Install with timeout (ksud can hang on some zips)
-      var installResult = exec("timeout 60 ksud module install " + installZip + " 2>&1");
+      var installResult = exec("ksud module install " + installZip + " 2>&1");
       debugLog.push({ update: modId, step: 'ksud_install', result: installResult });
 
       if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
@@ -1337,9 +1337,9 @@ function updateModule(modId, assetUrl, btn) {
       // Step 3: Cleanup, mark CI install, show result
       setTimeout(function() {
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        // Mark CI/pre-release install so version color persists across reloads
+        // Mark CI install so version color persists across reloads
         if (isCi) {
-          exec("echo '" + (ciLatest || 'ci').replace(/'/g, "") + "' > /data/adb/modules/" + modId + "/.muc_ci");
+          exec("echo 'ci' > /data/adb/modules/" + modId + "/.muc_ci");
         } else {
           exec("rm -f /data/adb/modules/" + modId + "/.muc_ci");
         }
@@ -1443,7 +1443,7 @@ function updateAll() {
     setTimeout(function() {
       var bDlLog = '/data/local/tmp/muc_dl.log';
       exec("rm -f " + bDlLog + " " + zipPath);
-      exec("curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w 'HTTP:%{http_code}' '" + item.assetUrl + "' > " + bDlLog + " 2>&1; echo EXIT:$? >> " + bDlLog);
+      exec("curl -Lf -s --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " -w '\\nHTTP:%{http_code}\\n' '" + item.assetUrl + "' > " + bDlLog + " 2>&1; echo EXIT:$? >> " + bDlLog);
       var bDlResult = exec("cat " + bDlLog + " 2>/dev/null | tr '\\n' ' '");
       exec("rm -f " + bDlLog);
       var bFileExists = exec("[ -f " + zipPath + " ] && stat -c %s " + zipPath + " 2>/dev/null | tr -d '\\n'");
@@ -1502,7 +1502,7 @@ function updateAll() {
           }
         }
 
-        var installResult = exec("timeout 60 ksud module install " + installZip + " 2>&1");
+        var installResult = exec("ksud module install " + installZip + " 2>&1");
         debugLog.push({ updateAll: item.modId, step: 'ksud_install', result: installResult });
 
         if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
