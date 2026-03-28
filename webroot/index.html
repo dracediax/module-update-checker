@@ -1281,27 +1281,44 @@ function updateModule(modId, assetUrl, btn) {
     btn.textContent = 'Installing...';
     btn.className = btnClass + ' installing';
 
-    // Step 2: Handle CI artifacts (zip-wrapped zip) and install
+    // Step 2: Handle CI artifacts and install
     setTimeout(function() {
-      // Check if this is a CI artifact (outer zip wrapping inner zip)
       var isCiArtifact = assetUrl.indexOf('/actions/') !== -1 && assetUrl.indexOf('/artifacts/') !== -1;
       var installZip = zipPath;
 
       if (isCiArtifact) {
-        // Extract inner zip from CI artifact wrapper
-        var extractDir = '/data/local/tmp/muc_ci_extract';
-        exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
-        exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
-        var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
-        if (innerZip) {
-          debugLog.push({ update: modId, step: 'ci_unwrap', innerZip: innerZip });
-          installZip = innerZip;
+        // Check if zip is already a valid module (contains module.prop)
+        var hasModuleProp = exec("unzip -l " + zipPath + " 2>/dev/null | grep -c 'module.prop' | tr -d '\\n'");
+        if (hasModuleProp && parseInt(hasModuleProp) > 0) {
+          // Zip is already a valid module — no unwrap needed
+          debugLog.push({ update: modId, step: 'ci_unwrap', info: 'direct module zip (has module.prop)' });
         } else {
-          debugLog.push({ update: modId, step: 'ci_unwrap', error: 'no inner zip found' });
+          // Try to extract inner zip from wrapper
+          var extractDir = '/data/local/tmp/muc_ci_extract';
+          exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
+          exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
+          var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
+          if (innerZip) {
+            debugLog.push({ update: modId, step: 'ci_unwrap', innerZip: innerZip });
+            installZip = innerZip;
+          } else {
+            // No inner zip and no module.prop — try installing the extracted dir
+            var extractedProp = exec("find " + extractDir + " -name 'module.prop' -type f | head -1 | tr -d '\\n'");
+            if (extractedProp) {
+              var extractedDir = extractedProp.replace(/\/module\.prop$/, '');
+              // Repackage extracted files as a zip for ksud
+              exec("cd " + extractedDir + " && zip -r -0 /data/local/tmp/muc_repacked.zip . 2>&1");
+              installZip = '/data/local/tmp/muc_repacked.zip';
+              debugLog.push({ update: modId, step: 'ci_unwrap', info: 'repacked from extracted dir' });
+            } else {
+              debugLog.push({ update: modId, step: 'ci_unwrap', error: 'no module.prop found anywhere' });
+            }
+          }
         }
       }
 
-      var installResult = exec("ksud module install " + installZip + " 2>&1");
+      // Install with timeout (ksud can hang on some zips)
+      var installResult = exec("timeout 60 ksud module install " + installZip + " 2>&1");
       debugLog.push({ update: modId, step: 'ksud_install', result: installResult });
 
       if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
@@ -1459,22 +1476,33 @@ function updateAll() {
       item.btn.className = bc + ' installing';
 
       setTimeout(function() {
-        // Handle CI artifacts (zip-wrapped zip)
         var isCiArtifact = item.assetUrl.indexOf('/actions/') !== -1 && item.assetUrl.indexOf('/artifacts/') !== -1;
         var installZip = zipPath;
 
         if (isCiArtifact) {
-          var extractDir = '/data/local/tmp/muc_ci_extract';
-          exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
-          exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
-          var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
-          if (innerZip) {
-            debugLog.push({ updateAll: item.modId, step: 'ci_unwrap', innerZip: innerZip });
-            installZip = innerZip;
+          var hasModuleProp = exec("unzip -l " + zipPath + " 2>/dev/null | grep -c 'module.prop' | tr -d '\\n'");
+          if (hasModuleProp && parseInt(hasModuleProp) > 0) {
+            debugLog.push({ updateAll: item.modId, step: 'ci_unwrap', info: 'direct module zip' });
+          } else {
+            var extractDir = '/data/local/tmp/muc_ci_extract';
+            exec("rm -rf " + extractDir + " && mkdir -p " + extractDir);
+            exec("unzip -o " + zipPath + " -d " + extractDir + " 2>&1");
+            var innerZip = exec("find " + extractDir + " -name '*.zip' -type f | head -1 | tr -d '\\n'");
+            if (innerZip) {
+              debugLog.push({ updateAll: item.modId, step: 'ci_unwrap', innerZip: innerZip });
+              installZip = innerZip;
+            } else {
+              var extractedProp = exec("find " + extractDir + " -name 'module.prop' -type f | head -1 | tr -d '\\n'");
+              if (extractedProp) {
+                var extractedDir = extractedProp.replace(/\/module\.prop$/, '');
+                exec("cd " + extractedDir + " && zip -r -0 /data/local/tmp/muc_repacked.zip . 2>&1");
+                installZip = '/data/local/tmp/muc_repacked.zip';
+              }
+            }
           }
         }
 
-        var installResult = exec("ksud module install " + installZip + " 2>&1");
+        var installResult = exec("timeout 60 ksud module install " + installZip + " 2>&1");
         debugLog.push({ updateAll: item.modId, step: 'ksud_install', result: installResult });
 
         if (!installResult || installResult.indexOf('Error') !== -1 || installResult.indexOf('error') !== -1 || installResult.indexOf('not found') !== -1) {
