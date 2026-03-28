@@ -24,24 +24,19 @@ Track, check, and update your modules from one place.
 
 ## Compatibility
 
-| Manager | WebUI | Background | Notifications | Install |
-|---------|:-----:|:----------:|:-------------:|:-------:|
-| KernelSU Next | ✅ | ✅ | ✅ | ✅ |
-| KernelSU (tiann) | ✅ | ✅ | ✅ | ✅ |
-| KsuWebUI standalone | ✅ | ✅ | ✅ | ✅ |
-| Magisk + KsuWebUI | ✅ | ✅ | ✅ | ✅ |
-| APatch + KsuWebUI | ✅ | ✅ | ✅ | ✅ |
+| Manager | WebUI | Background | Notifications | Install | Notes |
+|---------|:-----:|:----------:|:-------------:|:-------:|-------|
+| KernelSU Next | ✅ | ✅ | ✅ | ✅ | |
+| KernelSU (tiann) | ✅ | ✅ | ✅ | ✅ | |
+| Magisk + KsuWebUI | ✅ | ✅ | ✅ | ✅ | |
+| APatch + KsuWebUI | ✅ | ✅ | ✅ | ✅ | |
+| KsuWebUI standalone | ✅ | ✅ | ✅ | ✅ | |
+| rsuntk KSU | ✅ | ✅ | ✅ | ✅ | Non-GKI support (kernel 4.4+) |
+| Wild KSU | ✅ | ✅ | ✅ | ✅ | Extended "WebUI-Next" API |
+| SukiSU-Ultra | ✅ | ✅ | ✅ | ✅ | MMRL-enhanced WebUI, built-in SUSFS |
+| ReSukiSU | ✅* | ✅* | ✅* | ✅* | Requires metamodule or modules won't mount |
 
-### KSU Fork Compatibility
-
-| Fork | GitHub | WebUI | Notes |
-|------|--------|:-----:|-------|
-| rsuntk | rsuntk/KernelSU | ✅ | Standard ksu.exec(), non-GKI support (kernel 4.4+) |
-| Wild KSU | WildKernels/Wild_KSU | ✅ | Extended "WebUI-Next" API — superset of ksu.exec() |
-| SukiSU-Ultra | SukiSU-Ultra/SukiSU-Ultra | ✅ | MMRL-enhanced WebUI, built-in SUSFS |
-| ReSukiSU | ReSukiSU/ReSukiSU | ✅* | Requires metamodule installed or modules won't mount |
-
-\* MUC uses runtime detection (`ksu`/`ksuwebui` objects) — no hardcoded package names. Module install falls back to manual extract if `ksud` is renamed.
+\* Runtime detection (`ksu`/`ksuwebui` objects) — no hardcoded package names. Install falls back to manual extract if `ksud` is renamed.
 
 ## Install
 
