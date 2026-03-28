@@ -685,19 +685,29 @@ function renderModuleCard(mod, list) {
   card.id = 'card-' + mod.id;
   card.setAttribute('data-name', mod.name.toLowerCase());
   var mid = escapeAttr(mod.id);
-  // Check if this module was installed from a CI build
+  // Check CI and version override state
   var ciLine = exec("grep '^" + mod.id + "|' /data/adb/muc/ci_installed 2>/dev/null | head -1 | tr -d '\\n'");
   var isCiBuild = !!ciLine;
   var ciArtifactName = isCiBuild ? ciLine.split('|')[1] || '' : '';
-  var verStyle = isCiBuild ? ' style="color:var(--ci-label)"' : '';
-  var verSuffix = isCiBuild ? ' (CI' + (ciArtifactName ? ': ' + escapeHtml(ciArtifactName) : '') + ')' : '';
   var isSusfs = mod.id === 'susfs4ksu';
   var cachedRelTag = exec("grep '^" + mod.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
+  // Determine displayed version: prefer cached names over module.prop for CI/mismatch modules
+  var displayVer = mod.version;
+  var verStyle = '';
+  if (isCiBuild && ciArtifactName) {
+    displayVer = ciArtifactName + ' (CI)';
+    verStyle = ' style="color:var(--ci-label)"';
+  } else if (isCiBuild) {
+    displayVer = mod.version + ' (CI)';
+    verStyle = ' style="color:var(--ci-label)"';
+  } else if (isSusfs && cachedRelTag) {
+    displayVer = cachedRelTag;
+  }
   card.innerHTML =
     '<button class="mod-menu-btn" onclick="toggleModMenu(\'' + mid + '\')" title="Module settings">\u2699</button>' +
     '<div class="module-info">' +
       '<div class="module-name">' + escapeHtml(mod.name) + '</div>' +
-      '<div class="module-version"><span' + verStyle + '>' + escapeHtml(mod.version) + verSuffix + '</span> \u00b7 ' + escapeHtml(mod.id) +
+      '<div class="module-version"><span' + verStyle + '>' + escapeHtml(displayVer) + '</span> \u00b7 ' + escapeHtml(mod.id) +
         ' <span id="upd-' + mid + '"></span></div>' +
       '<div class="module-repo">' +
         '<input type="text" placeholder="owner/repo (e.g. Yurii0307/yurikey)" ' +
@@ -712,9 +722,9 @@ function renderModuleCard(mod, list) {
           '<input type="checkbox" ' + (ignoreCi ? '' : 'checked') + ' data-id="' + mid + '" class="ci-include" onchange="autoSaveConfig()"' + (tracked ? '' : ' disabled') + '>' +
           'CI builds</label>' : '') +
       '</div>' +
-      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 SUSFS installs as <b>' + escapeHtml(mod.version) + '</b> (kernel version)' +
-        (cachedRelTag ? ' \u00b7 Release: <b>' + escapeHtml(cachedRelTag) + '</b> \u00b7 Tracked via cached tag'
-                      : ' \u00b7 Can\u2019t match to release version \u00b7 Install via MUC to track accurately') +
+      (isSusfs ? '<div style="font-size:11px;color:var(--warn);margin-top:4px">\u26a0 ' +
+        (cachedRelTag ? 'Current installed release: <b>' + escapeHtml(cachedRelTag) + '</b>'
+                      : 'SUSFS version (' + escapeHtml(mod.version) + ') is the kernel version, not the module release \u00b7 Install via MUC to track accurately') +
         '</div>' : '') +
       '<div class="mod-menu" id="menu-' + mid + '">' +
         '<div class="mod-menu-label">Backup</div>' +
@@ -1375,15 +1385,23 @@ function updateModule(modId, assetUrl, btn) {
         // Update button FIRST (before version display innerHTML destroys it)
         btn.textContent = '\u2713 ' + modName + ' \u2014 Installed';
         btn.className = btnClass + ' done';
-        // Update version display to show CI tag
+        // Update version display — show CI artifact name or release tag
         var verEl = document.querySelector('#card-' + escapeAttr(modId) + ' .module-version');
-        if (verEl && isCi) {
-          var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'") || modName;
-          var firstText = verEl.firstChild;
-          if (firstText && firstText.nodeType === 3) {
-            firstText.textContent = freshVer + ' (CI: ' + ciName + ') \u00b7 ' + modId + ' ';
-          } else if (firstText && firstText.nodeType === 1) {
-            firstText.innerHTML = '<span style="color:var(--ci-label)">' + escapeHtml(freshVer) + ' (CI: ' + escapeHtml(ciName) + ')</span>';
+        if (verEl) {
+          var newDisplayVer = '';
+          if (isCi && ciName) {
+            newDisplayVer = ciName + ' (CI)';
+          } else if (relTag) {
+            newDisplayVer = relTag;
+          }
+          if (newDisplayVer) {
+            var firstChild = verEl.firstChild;
+            if (firstChild && firstChild.nodeType === 1) {
+              firstChild.textContent = newDisplayVer;
+              firstChild.style.color = isCi ? 'var(--ci-label)' : '';
+            } else if (firstChild && firstChild.nodeType === 3) {
+              firstChild.textContent = newDisplayVer + ' \u00b7 ' + modId + ' ';
+            }
           }
         }
         if (statusEl) {
