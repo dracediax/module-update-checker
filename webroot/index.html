@@ -780,7 +780,8 @@ function autoSaveSettings() {
 }
 
 function loadCachedUpdates() {
-  // Read cache written by service.sh: each line is mod_id|latest|asset_url
+  // Read cache: each line is mod_id|installed_ver|latest|asset_url (v6.4.4+)
+  // or legacy mod_id|latest|asset_url (v6.4.3-)
   var cacheRaw = exec("cat /data/adb/muc/update_cache 2>/dev/null | tr '\\n' ','");
   if (!cacheRaw || cacheRaw.trim().length < 3) return;
 
@@ -790,9 +791,20 @@ function loadCachedUpdates() {
   for (var i = 0; i < entries.length; i++) {
     var parts = entries[i].split('|');
     if (parts.length < 2) continue;
-    var modId = parts[0].trim();
-    var latest = parts[1].trim();
-    var assetUrl = parts[2] ? parts[2].trim() : '';
+
+    // Detect format: 4 parts = new (id|installed|latest|asset), 3 = legacy (id|latest|asset)
+    var modId, cachedInstalled, latest, assetUrl;
+    if (parts.length >= 4) {
+      modId = parts[0].trim();
+      cachedInstalled = parts[1].trim();
+      latest = parts[2].trim();
+      assetUrl = parts[3] ? parts[3].trim() : '';
+    } else {
+      modId = parts[0].trim();
+      cachedInstalled = '';
+      latest = parts[1].trim();
+      assetUrl = parts[2] ? parts[2].trim() : '';
+    }
     if (!modId || !latest) continue;
 
     var badge = document.getElementById('upd-' + modId);
@@ -800,9 +812,17 @@ function loadCachedUpdates() {
 
     // Verify cached update is still valid — re-read installed version from disk
     var currentVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
-    if (currentVer && !isNewer(currentVer, latest)) {
-      staleIds.push(modId);
-      continue;
+    if (currentVer) {
+      // If we have a cached installed version, compare strings — if it changed, entry is stale
+      if (cachedInstalled && currentVer !== cachedInstalled) {
+        staleIds.push(modId);
+        continue;
+      }
+      // Fallback for legacy cache: use version comparison
+      if (!cachedInstalled && !isNewer(currentVer, latest)) {
+        staleIds.push(modId);
+        continue;
+      }
     }
 
     // Find repo for changelog
@@ -1009,7 +1029,7 @@ function checkNow() {
       // Release update — counts for notification
       updates++;
       updateNames.push(mod.name + ': ' + releaseLatest);
-      cacheLines.push(t.id + '|' + releaseLatest + '|' + (releaseAsset || ''));
+      cacheLines.push(t.id + '|' + mod.version + '|' + releaseLatest + '|' + (releaseAsset || ''));
       badgeHtml += '<span class="update-available">\u2191 ' + escapeHtml(releaseLatest) + '</span>';
       if (releaseAsset) {
         badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(releaseAsset) + '\', this)">\u2191 Update to ' + escapeHtml(releaseLatest) + '</button>';
@@ -1019,7 +1039,7 @@ function checkNow() {
       // CI build available and not muted — counts for notification
       updates++;
       updateNames.push(mod.name + ': ' + ciLatest);
-      if (isCiOnly) cacheLines.push(t.id + '|' + ciLatest + '|' + (ciAsset || ''));
+      if (isCiOnly) cacheLines.push(t.id + '|' + mod.version + '|' + ciLatest + '|' + (ciAsset || ''));
     }
 
     // Show CI info only if not muted
