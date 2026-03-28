@@ -784,6 +784,7 @@ function loadCachedUpdates() {
 
   var entries = cacheRaw.trim().split(',');
   var count = 0;
+  var staleIds = [];
   for (var i = 0; i < entries.length; i++) {
     var parts = entries[i].split('|');
     if (parts.length < 2) continue;
@@ -794,6 +795,13 @@ function loadCachedUpdates() {
 
     var badge = document.getElementById('upd-' + modId);
     if (!badge) continue;
+
+    // Verify cached update is still valid — re-read installed version from disk
+    var currentVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
+    if (currentVer && !isNewer(currentVer, latest)) {
+      staleIds.push(modId);
+      continue;
+    }
 
     // Find repo for changelog
     var repo = '';
@@ -808,8 +816,13 @@ function loadCachedUpdates() {
     if (repo) {
       badge.innerHTML += '<button class="btn-changelog" onclick="showChangelog(\'' + escapeAttr(repo) + '\', this)">View changelog</button>';
     }
-    // upd-status already in card
     count++;
+  }
+
+  // Clean stale entries from cache file
+  if (staleIds.length > 0) {
+    var grepCmd = "grep -v '^\\(" + staleIds.join("\\|") + "\\)|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null";
+    exec(grepCmd);
   }
 
   if (count > 0) {
@@ -978,6 +991,19 @@ function checkNow() {
     }
     if (!mod) { idx++; setTimeout(checkNext, 10); return; }
 
+    // Re-read installed version from disk (may have been manually updated since page load)
+    var freshVer = exec("grep '^version=' /data/adb/modules/" + t.id + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
+    if (freshVer && mod) {
+      mod.version = freshVer;
+      // Update displayed version in card
+      var verEl = document.querySelector('#card-' + escapeAttr(t.id) + ' .module-version');
+      if (verEl) {
+        var badgeSpan = document.getElementById('upd-' + t.id);
+        var savedBadge = badgeSpan ? badgeSpan.outerHTML : '<span id="upd-' + escapeAttr(t.id) + '"></span>';
+        verEl.innerHTML = escapeHtml(freshVer) + ' \u00b7 ' + escapeHtml(mod.id) + ' ' + savedBadge;
+      }
+    }
+
     var badgeHtml = '';
     var hasReleaseUpdate = releaseLatest && isNewer(mod.version, releaseLatest);
     var hasCiUpdate = !!ciLatest;
@@ -1004,8 +1030,10 @@ function checkNow() {
       badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span>';
       if (ciAsset && ghToken) {
         badgeHtml += ' <button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:0" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
-      } else if (!ghToken && isCiOnly) {
+      } else if (!ghToken) {
         badgeHtml += ' <span style="color:#d29922;font-size:11px">token required</span>';
+      } else {
+        badgeHtml += ' <span style="color:var(--fg5);font-size:11px">no artifact</span>';
       }
       badgeHtml += '</div>';
     }
@@ -1136,6 +1164,19 @@ function updateModule(modId, assetUrl, btn) {
       btn.disabled = false;
       if (statusEl) statusEl.textContent = 'Download failed';
       debugLog.push({ update: modId, step: 'download', error: dlResult });
+      exec("rm -f " + zipPath);
+      return;
+    }
+
+    // Verify downloaded file is a valid zip (not an HTML error page)
+    var fileCheck = exec("[ -f " + zipPath + " ] && head -c 2 " + zipPath + " | od -A n -t x1 | tr -d ' \\n'");
+    if (fileCheck !== '504b') {
+      btn.textContent = '\u2191 Update';
+      btn.className = 'btn-update';
+      btn.disabled = false;
+      if (statusEl) statusEl.textContent = 'Download invalid (not a zip)';
+      debugLog.push({ update: modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck });
+      exec("rm -f " + zipPath);
       return;
     }
 
@@ -1277,6 +1318,20 @@ function updateAll() {
       if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
         item.btn.textContent = 'Failed';
         item.btn.className = 'btn-update';
+        exec("rm -f " + zipPath);
+        failed++;
+        idx++;
+        setTimeout(updateNext, 10);
+        return;
+      }
+
+      // Verify downloaded file is a valid zip
+      var fileCheck = exec("[ -f " + zipPath + " ] && head -c 2 " + zipPath + " | od -A n -t x1 | tr -d ' \\n'");
+      if (fileCheck !== '504b') {
+        item.btn.textContent = 'Failed (bad file)';
+        item.btn.className = 'btn-update';
+        debugLog.push({ updateAll: item.modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck });
+        exec("rm -f " + zipPath);
         failed++;
         idx++;
         setTimeout(updateNext, 10);
@@ -1486,12 +1541,12 @@ function showDebug() {
     '<button class="btn" style="background:#333;font-size:13px;padding:10px" onclick="copyBugReport()">Copy Bug Report for GitHub</button>' +
     '<div id="copy-feedback" style="font-size:11px;color:#888;margin-top:4px;min-height:16px"></div></div>';
 
-  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v5.4</div>' + html + reportHtml + '</div>';
+  el.innerHTML = '<div style="margin-top:12px"><div style="text-align:center;color:#58a6ff;font-size:14px;font-weight:600;margin-bottom:8px">v6.4.1</div>' + html + reportHtml + '</div>';
 }
 
 function copyBugReport() {
   var report = '### MUC Bug Report\n\n';
-  report += '**Version:** v5.4 (versionCode 107)\n';
+  report += '**Version:** v6.4.1 (versionCode 132)\n';
   report += '**Device:** ' + exec("getprop ro.product.model | tr -d '\\n'") + '\n';
   report += '**Android:** ' + exec("getprop ro.build.version.release | tr -d '\\n'") + '\n';
   report += '**Kernel:** ' + exec("uname -r | tr -d '\\n'") + '\n';
@@ -1774,13 +1829,37 @@ function toggleTheme() {
 
 // Batch select
 function showBatchSelect() {
-  // Add checkboxes to all modules with updates
+  // Add checkboxes to all modules with updates (re-verify versions from disk)
   var btns = document.querySelectorAll('.btn-update:not(.done):not(:disabled)');
   if (btns.length === 0) return;
 
   for (var i = 0; i < btns.length; i++) {
     var card = btns[i].closest('.module-card');
     if (!card || card.querySelector('.batch-check')) continue;
+
+    // Re-check if module still needs update (may have been manually updated)
+    var onclick = btns[i].getAttribute('onclick') || '';
+    var m = onclick.match(/updateModule\('([^']+)'/);
+    if (m) {
+      var modId = m[1];
+      var freshVer = exec("grep '^version=' /data/adb/modules/" + modId + "/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\\n'");
+      if (freshVer) {
+        // Update modules array
+        for (var j = 0; j < modules.length; j++) {
+          if (modules[j].id === modId) { modules[j].version = freshVer; break; }
+        }
+        // Extract target version from button text (e.g. "↑ Update to v1.2.3")
+        var btnText = btns[i].textContent || '';
+        var targetVer = btnText.replace(/^.*Update to\s*/, '').trim();
+        if (targetVer && !isNewer(freshVer, targetVer)) {
+          // Already up-to-date — remove update badge
+          var badge = document.getElementById('upd-' + modId);
+          if (badge) badge.innerHTML = '<span class="up-to-date">\u2713</span>';
+          continue;
+        }
+      }
+    }
+
     var cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = true;
