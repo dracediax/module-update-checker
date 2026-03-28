@@ -20,6 +20,7 @@ Track, check, and update your modules from one place.
 - **Notifications** — configurable boot checks, 24h background polling, companion app or shell fallback
 - **GitHub token** — unlocks 5,000 API calls/hr, CI build detection, and artifact downloads (`public_repo` scope)
 - **Dark & light theme**, search/filter, changelog viewer, debug panel, bug report generator
+- **Minimal battery impact** — one network burst on boot, then idle. No persistent services or wake locks
 
 ## Compatibility
 
@@ -56,3 +57,16 @@ All persistent data at `/data/adb/muc/` — survives module updates.
 - [ ] Custom notification sound
 - [ ] Randomized package name
 - [ ] Magisk terminal setup
+
+<details>
+<summary><b>How it works</b></summary>
+
+**WebUI** runs shell commands via `ksu.exec()` — module discovery, GitHub API queries, and module installation all happen through root shell calls from the browser context.
+
+**service.sh** is a background daemon that starts after boot. It waits for network, runs update checks, sends notifications, and provides a file-based IPC bridge for the companion app. Polling interval is 60s for trigger checks, 24h for update cycles. CPU usage is negligible — the daemon sleeps between checks.
+
+**Companion app** (~58KB) is a standalone WebView that loads the module's `index.html` via root IPC. No superuser permission needed — the service.sh daemon executes commands on its behalf. Can be disabled in Settings; notifications fall back to shell.
+
+**Notifications** use `su 2000` (shell UID) because Android silently discards notifications posted from root (UID 0). The companion app provides branded, tappable notifications when installed.
+
+</details>
