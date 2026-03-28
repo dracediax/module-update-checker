@@ -193,9 +193,9 @@
   }
   .btn-update:active { background: var(--green2); }
   .btn-update:disabled { background: #333; color: var(--fg5); cursor: default; }
-  .btn-update.downloading { background: #3a5a3a; }
-  .btn-update.installing { background: #4a4a2a; }
-  .btn-update.done { background: #2a4a6a; }
+  .btn-update.downloading, .btn-update-ci.downloading, .btn-update-pre.downloading { background: #3a5a3a; color: var(--fg2); }
+  .btn-update.installing, .btn-update-ci.installing, .btn-update-pre.installing { background: #4a4a2a; color: var(--fg2); }
+  .btn-update.done, .btn-update-ci.done, .btn-update-pre.done { background: #2a4a6a; color: var(--fg2); }
   .update-status {
     display: block; font-size: 11px; margin-top: 4px; color: var(--fg4); text-align: center;
   }
@@ -1209,9 +1209,14 @@ function showChangelog(repo, el) {
 }
 
 function updateModule(modId, assetUrl, btn) {
+  var origClass = btn.className;
+  var isCi = origClass.indexOf('btn-update-ci') !== -1;
+  var isPre = origClass.indexOf('btn-update-pre') !== -1;
+  var btnClass = isCi ? 'btn-update-ci' : (isPre ? 'btn-update-pre' : 'btn-update');
+  var btnLabel = isCi ? '\u2191 Update to CI' : (isPre ? '\u2191 Update to Pre-release' : '\u2191 Update');
   btn.disabled = true;
   btn.textContent = 'Backing up...';
-  btn.className = 'btn-update downloading';
+  btn.className = btnClass + ' downloading';
   var statusEl = document.getElementById('upd-status-' + modId);
   var zipPath = '/data/local/tmp/muc_' + modId + '.zip';
 
@@ -1227,10 +1232,10 @@ function updateModule(modId, assetUrl, btn) {
 
   // Step 1: Download
   setTimeout(function() {
-    var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
+    var dlResult = exec("curl -Lf --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " '" + assetUrl + "' 2>&1 && echo DL_OK");
     if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
-      btn.textContent = '\u2191 Update';
-      btn.className = 'btn-update';
+      btn.textContent = btnLabel;
+      btn.className = btnClass;
       btn.disabled = false;
       if (statusEl) statusEl.textContent = 'Download failed';
       debugLog.push({ update: modId, step: 'download', error: dlResult });
@@ -1241,8 +1246,8 @@ function updateModule(modId, assetUrl, btn) {
     // Verify downloaded file is a valid zip (not an HTML error page)
     var fileCheck = exec("[ -f " + zipPath + " ] && head -c 2 " + zipPath + " | od -A n -t x1 | tr -d ' \\n'");
     if (fileCheck !== '504b') {
-      btn.textContent = '\u2191 Update';
-      btn.className = 'btn-update';
+      btn.textContent = btnLabel;
+      btn.className = btnClass;
       btn.disabled = false;
       if (statusEl) statusEl.textContent = 'Download invalid (not a zip)';
       debugLog.push({ update: modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck });
@@ -1251,7 +1256,7 @@ function updateModule(modId, assetUrl, btn) {
     }
 
     btn.textContent = 'Installing...';
-    btn.className = 'btn-update installing';
+    btn.className = btnClass + ' installing';
 
     // Step 2: Handle CI artifacts (zip-wrapped zip) and install
     setTimeout(function() {
@@ -1282,7 +1287,7 @@ function updateModule(modId, assetUrl, btn) {
 
         if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
           btn.textContent = 'Failed';
-          btn.className = 'btn-update';
+          btn.className = btnClass;
           if (statusEl) statusEl.textContent = 'Install failed — check debug';
           exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
           return;
@@ -1292,8 +1297,8 @@ function updateModule(modId, assetUrl, btn) {
       // Step 3: Cleanup and show result
       setTimeout(function() {
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        btn.textContent = '\u2713 ' + modName + ' — Installed';
-        btn.className = 'btn-update done';
+        btn.textContent = '\u2713 ' + modName + ' \u2014 Installed';
+        btn.className = btnClass + ' done';
         if (statusEl) {
           statusEl.innerHTML = '<button class="mod-menu-action rollback" onclick="rollbackModule(\'' + escapeAttr(modId) + '\', this.parentNode)">\u21a9 Rollback</button> ' +
             '<button class="mod-menu-action delete" onclick="deleteBackup(\'' + escapeAttr(modId) + '\', this.parentNode)">\u2715 Delete</button>';
@@ -1379,19 +1384,21 @@ function updateAll() {
     }
 
     var item = pendingUpdates[idx];
+    var oc = item.btn.className;
+    var bc = oc.indexOf('btn-update-ci') !== -1 ? 'btn-update-ci' : (oc.indexOf('btn-update-pre') !== -1 ? 'btn-update-pre' : 'btn-update');
     progressEl.textContent = 'Updating ' + item.modName + ' (' + (idx + 1) + '/' + total + ')...';
     allBtn.textContent = '\u2191 Updating ' + (idx + 1) + '/' + total + '...';
 
     var zipPath = '/data/local/tmp/muc_' + item.modId + '.zip';
     item.btn.disabled = true;
     item.btn.textContent = '\u2913 Downloading...';
-    item.btn.className = 'btn-update downloading';
+    item.btn.className = bc + ' downloading';
 
     setTimeout(function() {
-      var dlResult = exec("curl -Lf --connect-timeout 30" + curlAuth() + " -o " + zipPath + " '" + item.assetUrl + "' 2>&1 && echo DL_OK");
+      var dlResult = exec("curl -Lf --connect-timeout 30 --max-time 180" + curlAuth() + " -o " + zipPath + " '" + item.assetUrl + "' 2>&1 && echo DL_OK");
       if (!dlResult || dlResult.indexOf('DL_OK') === -1) {
         item.btn.textContent = 'Failed';
-        item.btn.className = 'btn-update';
+        item.btn.className = bc;
         exec("rm -f " + zipPath);
         failed++;
         idx++;
@@ -1403,7 +1410,7 @@ function updateAll() {
       var fileCheck = exec("[ -f " + zipPath + " ] && head -c 2 " + zipPath + " | od -A n -t x1 | tr -d ' \\n'");
       if (fileCheck !== '504b') {
         item.btn.textContent = 'Failed (bad file)';
-        item.btn.className = 'btn-update';
+        item.btn.className = bc;
         debugLog.push({ updateAll: item.modId, step: 'verify', error: 'not a zip, magic: ' + fileCheck });
         exec("rm -f " + zipPath);
         failed++;
@@ -1413,7 +1420,7 @@ function updateAll() {
       }
 
       item.btn.textContent = 'Installing...';
-      item.btn.className = 'btn-update installing';
+      item.btn.className = bc + ' installing';
 
       setTimeout(function() {
         // Handle CI artifacts (zip-wrapped zip)
@@ -1440,7 +1447,7 @@ function updateAll() {
 
           if (!fallback || fallback.indexOf('INSTALL_OK') === -1) {
             item.btn.textContent = 'Failed';
-            item.btn.className = 'btn-update';
+            item.btn.className = bc;
             exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
             failed++;
             idx++;
@@ -1450,8 +1457,8 @@ function updateAll() {
         }
 
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        item.btn.textContent = '\u2713 ' + item.modName + ' — Installed';
-        item.btn.className = 'btn-update done';
+        item.btn.textContent = '\u2713 ' + item.modName + ' \u2014 Installed';
+        item.btn.className = bc + ' done';
 
         exec("grep -v '^" + item.modId + "|' /data/adb/muc/update_cache > /data/adb/muc/update_cache.tmp 2>/dev/null; mv /data/adb/muc/update_cache.tmp /data/adb/muc/update_cache 2>/dev/null");
         exec("echo '$(date +%Y-%m-%d\\ %H:%M) | " + item.modName.replace(/'/g, "") + " | updated' >> /data/adb/muc/history");
