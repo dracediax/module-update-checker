@@ -1059,15 +1059,14 @@ function checkNow() {
 
     // Show CI info only if not muted
     if (hasCiUpdate && !ciMuted) {
-      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span>';
+      badgeHtml += '<div style="margin-top:6px"><span class="ci-version">CI: ' + escapeHtml(ciLatest) + '</span></div>';
       if (ciAsset && ghToken) {
-        badgeHtml += '<br><button class="btn-update" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px;margin-top:4px" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
+        badgeHtml += '<button class="btn-update" onclick="updateModule(\'' + escapeAttr(t.id) + '\', \'' + escapeAttr(ciAsset) + '\', this)">\u2191 Update to CI</button>';
       } else if (!ghToken) {
-        badgeHtml += ' <span style="color:#d29922;font-size:11px">token required</span>';
+        badgeHtml += '<div style="margin-top:4px"><span style="color:#d29922;font-size:11px">token required</span></div>';
       } else {
-        badgeHtml += ' <span style="color:var(--fg5);font-size:11px">no artifact</span>';
+        badgeHtml += '<div style="margin-top:4px"><span style="color:var(--fg5);font-size:11px">no artifact</span></div>';
       }
-      badgeHtml += '</div>';
       // Show CI build date in module menu
       if (ciDate) {
         var menuEl = document.getElementById('menu-' + t.id);
