@@ -326,18 +326,22 @@
   <div class="setting-group">
     <h3>Update Check</h3>
     <div class="setting-row">
-      <label for="boot-mode">After reboot:</label>
-      <select id="boot-mode" onchange="autoSaveSettings()">
+      <label for="boot-mode">Mode:</label>
+      <select id="boot-mode" onchange="onBootModeChange(); autoSaveSettings()">
+        <option value="scheduled">Daily at set time (recommended)</option>
         <option value="every_boot">Every boot</option>
-        <option value="every_boot_cooldown">Every boot (skip if checked &lt;1h ago)</option>
-        <option value="once_a_day">Once a day</option>
         <option value="manual">Manual only</option>
       </select>
     </div>
+    <div class="setting-row" id="check-time-row" style="margin-top:8px">
+      <label for="check-time">Check at:</label>
+      <input type="time" id="check-time" value="08:00" onchange="autoSaveSettings()" style="background:var(--bg3);color:var(--fg);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-size:13px">
+      <span id="next-check-info" style="font-size:11px;color:var(--fg4);margin-left:8px"></span>
+    </div>
     <div class="setting-info">
-      <b>Every boot</b> — always checks, even if you just checked 5 minutes ago.<br>
-      <b>Every boot (skip if checked &lt;1h ago)</b> — default. Saves API calls if you reboot often.<br>
-      <b>Once a day</b> — only checks if 24+ hours since last check.<br>
+      <b>Daily at set time</b> — checks once per day at your chosen time. Zero battery drain (single sleep timer).<br>
+      If the phone was off during the scheduled time, it checks on next boot.<br>
+      <b>Every boot</b> — checks immediately on every reboot.<br>
       <b>Manual only</b> — no auto-checks. Use the button above.
     </div>
   </div>
@@ -467,15 +471,66 @@ var KNOWN_REPOS = {
   'wireless-adb': 'dracediax/wireless-adb'
 };
 
-// Resolve ambiguous module IDs by checking the module name
-// Some modules share the same ID (e.g. tricky_store is used by both TrickyStore and TEESimulator)
+// Smart name-based repo resolution — matches module names to known GitHub repos.
+// Ordered most-specific first. Handles forks, renames, and modules sharing the same ID.
 var NAME_REPOS = [
+  // PIF family (all use playintegrityfix ID)
   { match: /integrity\s*box/i, repo: 'MeowDump/Integrity-Box' },
-  { match: /teesimulator.rs/i, repo: 'Enginex0/TEESimulator-RS' },
+  { match: /pif.?inject/i, repo: 'pif-dev/PlayIntegrityFix-inject' },
+  { match: /play\s*integrity\s*fix/i, repo: 'KOWX712/PlayIntegrityFix' },
+  // TrickyStore family (all use tricky_store ID)
+  { match: /teesimulator[.\s\-]*rs/i, repo: 'Enginex0/TEESimulator-RS' },
   { match: /tee\s*simulator/i, repo: 'JingMatrix/TEESimulator' },
   { match: /tricky\s*store/i, repo: '5ec1cff/TrickyStore' },
-  { match: /irena/i, repo: 're-zero001/LSPosed-Irena' }
+  // LSPosed family
+  { match: /lsposed.*irena/i, repo: 're-zero001/LSPosed-Irena' },
+  { match: /lsposed/i, repo: 'LSPosed/LSPosed' },
+  // Zygisk implementations
+  { match: /rezygisk/i, repo: 'PerformanC/ReZygisk' },
+  { match: /zygisk\s*next/i, repo: 'Dr-TSNG/ZygiskNext' },
+  { match: /no\s*hello/i, repo: 'MhmRdd/NoHello' },
+  { match: /vector/i, repo: 'JingMatrix/Vector' },
+  // Root tools
+  { match: /shamiko/i, repo: 'LSPosed/LSPosed.github.io' },
+  { match: /susfs/i, repo: 'sidex15/susfs4ksu-module' },
+  { match: /anti.?bootloop/i, repo: 'Kolass2004/anti-bootloop-module' },
+  { match: /yurikey/i, repo: 'Yurii0307/yurikey' },
+  // Tricky Addon
+  { match: /tricky\s*addon/i, repo: 'KOWX712/Tricky-Addon-Update-Target-List' },
+  // Our modules
+  { match: /module\s*update\s*checker/i, repo: 'dracediax/module-update-checker' },
+  { match: /stepless\s*volume/i, repo: 'dracediax/stepless-volume' },
+  { match: /wireless\s*adb/i, repo: 'dracediax/wireless-adb' },
+  { match: /dmverity|props?\s*spoof/i, repo: 'dracediax/dmverity-props-spoof' }
 ];
+
+// Keyword index for fuzzy matching — maps lowercase keywords to repos
+// Used as fallback when NAME_REPOS regex doesn't match
+var KEYWORD_REPOS = {};
+(function() {
+  var entries = [
+    { keywords: ['integrity', 'box', 'meowdump'], repo: 'MeowDump/Integrity-Box' },
+    { keywords: ['pif', 'inject'], repo: 'pif-dev/PlayIntegrityFix-inject' },
+    { keywords: ['playintegrityfix', 'integrity', 'safetynet'], repo: 'KOWX712/PlayIntegrityFix' },
+    { keywords: ['teesimulator', 'tee'], repo: 'JingMatrix/TEESimulator' },
+    { keywords: ['trickystore', 'tricky'], repo: '5ec1cff/TrickyStore' },
+    { keywords: ['lsposed', 'irena'], repo: 're-zero001/LSPosed-Irena' },
+    { keywords: ['rezygisk'], repo: 'PerformanC/ReZygisk' },
+    { keywords: ['zygisknext', 'zygisk'], repo: 'Dr-TSNG/ZygiskNext' },
+    { keywords: ['shamiko'], repo: 'LSPosed/LSPosed.github.io' },
+    { keywords: ['susfs'], repo: 'sidex15/susfs4ksu-module' },
+    { keywords: ['bootloop', 'abootloop'], repo: 'Kolass2004/anti-bootloop-module' },
+    { keywords: ['yurikey'], repo: 'Yurii0307/yurikey' },
+    { keywords: ['nohello'], repo: 'MhmRdd/NoHello' },
+    { keywords: ['vector'], repo: 'JingMatrix/Vector' }
+  ];
+  for (var i = 0; i < entries.length; i++) {
+    for (var k = 0; k < entries[i].keywords.length; k++) {
+      if (!KEYWORD_REPOS[entries[i].keywords[k]]) KEYWORD_REPOS[entries[i].keywords[k]] = [];
+      KEYWORD_REPOS[entries[i].keywords[k]].push(entries[i].repo);
+    }
+  }
+})();
 
 // Repos that use GitHub Actions CI builds instead of releases
 var CI_REPOS = {
@@ -483,15 +538,36 @@ var CI_REPOS = {
 };
 
 function resolveRepo(id, name, dir) {
-  // Check saved config first (handled elsewhere)
-  // Check name-based rules for ambiguous IDs
+  // 1. Regex name matching (most specific, handles forks with same ID)
   if (name) {
     for (var i = 0; i < NAME_REPOS.length; i++) {
       if (NAME_REPOS[i].match.test(name)) return NAME_REPOS[i].repo;
     }
   }
-  // Fall back to ID-based lookup
-  return KNOWN_REPOS[id] || KNOWN_REPOS[dir] || '';
+  // 2. ID-based lookup
+  var idMatch = KNOWN_REPOS[id] || KNOWN_REPOS[dir];
+  if (idMatch) return idMatch;
+  // 3. Fuzzy keyword matching — extract words from name+id, score against keyword index
+  if (name || id) {
+    var text = ((name || '') + ' ' + (id || '') + ' ' + (dir || '')).toLowerCase();
+    var words = text.replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function(w) { return w.length > 2; });
+    var scores = {};
+    for (var w = 0; w < words.length; w++) {
+      var repos = KEYWORD_REPOS[words[w]];
+      if (repos) {
+        for (var r = 0; r < repos.length; r++) {
+          scores[repos[r]] = (scores[repos[r]] || 0) + 1;
+        }
+      }
+    }
+    // Find best match — need at least 1 keyword hit
+    var best = ''; var bestScore = 0;
+    for (var repo in scores) {
+      if (scores[repo] > bestScore) { bestScore = scores[repo]; best = repo; }
+    }
+    if (best) return best;
+  }
+  return '';
 }
 
 var modules = [];
@@ -499,7 +575,7 @@ var config = [];
 var debugLog = [];
 var ksuPackage = '';
 var ghToken = '';
-var bootMode = 'every_boot_cooldown';
+var bootMode = 'scheduled';
 var companionWasOn = true; // tracks boot state of companion app
 var apiCalls = 0;
 var apiHourStart = 0;
@@ -687,8 +763,15 @@ function renderModuleCard(mod, list) {
   var mid = escapeAttr(mod.id);
   // Check CI and version override state
   var ciLine = exec("grep '^" + mod.id + "|' /data/adb/muc/ci_installed 2>/dev/null | head -1 | tr -d '\\n'");
-  var isCiBuild = !!ciLine;
-  var ciArtifactName = isCiBuild ? ciLine.split('|')[1] || '' : '';
+  var ciParts = ciLine ? ciLine.split('|') : [];
+  var ciArtifactName = ciParts[1] || '';
+  var ciStoredName = ciParts[2] || '';
+  // Invalidate stale CI marker if module was replaced (same ID, different module name)
+  var isCiBuild = !!ciLine && (!ciStoredName || ciStoredName === mod.name);
+  if (ciLine && ciStoredName && ciStoredName !== mod.name) {
+    exec("grep -v '^" + mod.id + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
+    ciArtifactName = '';
+  }
   var isSusfs = mod.id === 'susfs4ksu';
   var cachedRelTag = exec("grep '^" + mod.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
   // Determine displayed version
@@ -812,14 +895,51 @@ function autoSaveConfig() {
   showUpdateAllButton();
 }
 
+function onBootModeChange() {
+  var mode = document.getElementById('boot-mode').value;
+  document.getElementById('check-time-row').style.display = (mode === 'scheduled') ? 'flex' : 'none';
+  updateNextCheckInfo();
+}
+
+function updateNextCheckInfo() {
+  var el = document.getElementById('next-check-info');
+  if (!el) return;
+  var mode = document.getElementById('boot-mode').value;
+  if (mode !== 'scheduled') { el.textContent = ''; return; }
+  var checkTime = document.getElementById('check-time').value || '08:00';
+  var parts = checkTime.split(':');
+  var targetH = parseInt(parts[0]) || 0;
+  var targetM = parseInt(parts[1]) || 0;
+  var now = new Date();
+  var curSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  var targetSecs = targetH * 3600 + targetM * 60;
+  var wait = targetSecs - curSecs;
+  if (wait <= 0) wait += 86400;
+  var h = Math.floor(wait / 3600);
+  var m = Math.floor((wait % 3600) / 60);
+  el.textContent = 'next in ' + h + 'h ' + m + 'm';
+  // Read last scheduled check
+  var lastSched = exec("cat /data/adb/muc/last_scheduled_check 2>/dev/null | tr -d '\\n'");
+  if (lastSched) {
+    var elapsed = Math.floor(Date.now() / 1000) - parseInt(lastSched);
+    if (elapsed > 0) {
+      var lh = Math.floor(elapsed / 3600);
+      var lm = Math.floor((elapsed % 3600) / 60);
+      el.textContent += ' \u00b7 last: ' + lh + 'h ' + lm + 'm ago';
+    }
+  }
+}
+
 function autoSaveSettings() {
   var bootMode = document.getElementById('boot-mode').value;
+  var checkTime = document.getElementById('check-time').value || '08:00';
   var debugOn = document.getElementById('debug-toggle').checked;
   var companionOn = document.getElementById('companion-toggle').checked;
   var themeLight = document.getElementById('theme-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  exec("printf 'boot_check=" + bootMode + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
+  exec("printf 'boot_check=" + bootMode + "\ncheck_time=" + checkTime + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
+  updateNextCheckInfo();
 
   var companionChanged = (companionOn !== companionWasOn);
   if (companionChanged) {
@@ -1390,10 +1510,10 @@ function updateModule(modId, assetUrl, btn) {
       setTimeout(function() {
         try {
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract && rm -f /data/local/tmp/muc_repacked.zip");
-        // Mark CI install in persistent file (id|artifact_name)
+        // Mark CI install in persistent file (id|artifact_name|module_name)
         if (isCi) {
           exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
-          exec("echo '" + modId + "|" + ciName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
+          exec("echo '" + modId + "|" + ciName.replace(/'/g, "") + "|" + modName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
           exec("grep -v '^" + modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
         }
@@ -1607,11 +1727,11 @@ function updateAll() {
         }
 
         exec("rm -f " + zipPath + " && rm -rf /data/local/tmp/muc_ci_extract");
-        // Mark CI install in persistent file (id|artifact_name)
+        // Mark CI install in persistent file (id|artifact_name|module_name)
         var bCiName = item.btn.getAttribute('data-ci-name') || 'ci';
         if (bc === 'btn-update-ci') {
           exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
-          exec("echo '" + item.modId + "|" + bCiName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
+          exec("echo '" + item.modId + "|" + bCiName.replace(/'/g, "") + "|" + item.modName.replace(/'/g, "") + "' >> /data/adb/muc/ci_installed");
         } else {
           exec("grep -v '^" + item.modId + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
         }
@@ -1978,9 +2098,10 @@ function loadSettings() {
   if (settings) {
     var modeMatch = settings.match(/boot_check=([^\n]+)/);
     if (modeMatch) bootMode = modeMatch[1].trim();
-    // Migrate old values
-    if (bootMode === 'always') bootMode = 'every_boot_cooldown';
-    if (bootMode === 'daily') bootMode = 'once_a_day';
+    // Migrate old values to new scheduled mode
+    if (bootMode === 'always' || bootMode === 'every_boot_cooldown' || bootMode === 'once_a_day' || bootMode === 'daily') bootMode = 'scheduled';
+    var timeMatch = settings.match(/check_time=([^\n]+)/);
+    if (timeMatch) document.getElementById('check-time').value = timeMatch[1].trim();
     var debugMatch = settings.match(/debug_menu=(\w+)/);
     if (debugMatch && debugMatch[1] === 'on') {
       document.getElementById('debug-toggle').checked = true;
@@ -2002,6 +2123,7 @@ function loadSettings() {
     }
   }
   document.getElementById('boot-mode').value = bootMode;
+  onBootModeChange();
 
   // Load API stats
   loadApiStats();
