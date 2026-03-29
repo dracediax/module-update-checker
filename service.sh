@@ -3,7 +3,6 @@ MODDIR=${0%/*}
 MUC_DIR="/data/adb/muc"
 mkdir -p "$MUC_DIR"
 CONFIG="$MUC_DIR/config.json"
-TRIGGER="$MODDIR/notify_trigger"
 LOGFILE="$MODDIR/service.log"
 LAST_NOTIF="$MODDIR/last_notif"
 UPDATE_CACHE="$MUC_DIR/update_cache"
@@ -12,8 +11,8 @@ SETTINGS_FILE="$MUC_DIR/settings"
 API_STATS_FILE="$MUC_DIR/api_stats"
 LAST_CHECK_FILE="$MUC_DIR/last_check"
 KSU_PKG_FILE="$MUC_DIR/ksu_package"
-CHECK_INTERVAL=86400  # 24 hours
-POLL_INTERVAL=60      # check trigger file every 60s
+# Update checks run once at boot (respecting cooldown via LAST_CHECK_FILE)
+# No polling loop — WebUI "Check Now" runs checks inline via exec()
 
 log() {
     echo "$(date '+%H:%M:%S') $1" >> "$LOGFILE"
@@ -110,45 +109,93 @@ get_boot_mode() {
     echo "always"
 }
 
-should_check() {
+# Smart update scheduler — sleeps until exact target time, zero polling
+# Reads check_time from settings (HH:MM, default 08:00)
+# Tracks last SCHEDULED check separately (manual/boot checks don't count)
+SCHEDULED_CHECK_FILE="$MUC_DIR/last_scheduled_check"
+
+get_check_time() {
+    if [ -f "$SETTINGS_FILE" ]; then
+        local t=$(grep '^check_time=' "$SETTINGS_FILE" | cut -d= -f2)
+        # Validate HH:MM format
+        if echo "$t" | grep -qE '^[0-2][0-9]:[0-5][0-9]$'; then
+            echo "$t"
+            return
+        fi
+    fi
+    echo "08:00"
+}
+
+# Calculate seconds until next occurrence of HH:MM
+secs_until() {
+    local target_h=$(echo "$1" | cut -d: -f1 | sed 's/^0//')
+    local target_m=$(echo "$1" | cut -d: -f2 | sed 's/^0//')
+    local cur_h=$(date +%H | sed 's/^0//')
+    local cur_m=$(date +%M | sed 's/^0//')
+    local cur_s=$(date +%S | sed 's/^0//')
+    local target_secs=$(( (target_h * 3600) + (target_m * 60) ))
+    local cur_secs=$(( (cur_h * 3600) + (cur_m * 60) + cur_s ))
+    local wait=$((target_secs - cur_secs))
+    [ "$wait" -le 0 ] && wait=$((wait + 86400))
+    echo "$wait"
+}
+
+schedule_checks() {
     local mode=$(get_boot_mode)
     # Migrate old values
-    [ "$mode" = "always" ] && mode="every_boot_cooldown"
-    [ "$mode" = "daily" ] && mode="once_a_day"
-    log "boot mode: $mode"
+    [ "$mode" = "always" ] && mode="every_boot"
+    [ "$mode" = "daily" ] && mode="scheduled"
+    [ "$mode" = "every_boot_cooldown" ] && mode="scheduled"
+    [ "$mode" = "once_a_day" ] && mode="scheduled"
+    log "check mode: $mode"
 
     if [ "$mode" = "manual" ]; then
-        log "skipping check — manual only mode"
-        return 1
+        log "manual mode — no auto-checks"
+        return
     fi
 
-    if [ "$mode" = "once_a_day" ]; then
-        if [ -f "$LAST_CHECK_FILE" ]; then
-            local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
-            local now=$(date +%s)
-            local elapsed=$((now - last))
-            if [ "$elapsed" -lt 86400 ]; then
-                log "skipping check — last check was ${elapsed}s ago (once a day mode)"
-                return 1
-            fi
-        fi
+    if [ "$mode" = "every_boot" ]; then
+        log "every_boot — checking now"
+        check_updates
+        return
     fi
 
-    if [ "$mode" = "every_boot_cooldown" ]; then
-        if [ -f "$LAST_CHECK_FILE" ]; then
-            local last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
-            local now=$(date +%s)
-            local elapsed=$((now - last))
-            if [ "$elapsed" -lt 3600 ]; then
-                log "skipping check — last check was ${elapsed}s ago (1h cooldown)"
-                return 1
-            fi
-        fi
+    # scheduled mode: check at user-specified time daily
+    local check_time=$(get_check_time)
+    local now=$(date +%s)
+    log "scheduled mode — target time: $check_time"
+
+    # Failsafe: did we miss the last scheduled window?
+    # If last scheduled check was >24h ago, check now (phone was off during window)
+    local last_sched=0
+    if [ -f "$SCHEDULED_CHECK_FILE" ]; then
+        last_sched=$(cat "$SCHEDULED_CHECK_FILE" 2>/dev/null)
+        [ -z "$last_sched" ] && last_sched=0
+    fi
+    local sched_elapsed=$((now - last_sched))
+
+    if [ "$last_sched" -eq 0 ] || [ "$sched_elapsed" -ge 93600 ]; then
+        # Never checked or missed window (>26h grace = 24h + 2h buffer)
+        log "missed scheduled window (last: ${sched_elapsed}s ago) — checking now"
+        check_updates
+        date +%s > "$SCHEDULED_CHECK_FILE"
+    else
+        log "last scheduled check was ${sched_elapsed}s ago"
     fi
 
-    # every_boot = always check, no cooldown
-    log "proceeding with check"
-    return 0
+    # Calculate exact sleep until next check_time
+    local wait=$(secs_until "$check_time")
+    log "sleeping ${wait}s until $check_time"
+
+    # Sleep until target time, check, repeat daily
+    while true; do
+        sleep "$wait"
+        log "scheduled check at $check_time"
+        check_updates
+        date +%s > "$SCHEDULED_CHECK_FILE"
+        wait=86400
+    done &
+    log "scheduler PID: $! (next check in ${wait}s at $check_time)"
 }
 
 curl_auth() {
@@ -202,17 +249,6 @@ send_notification() {
     echo "$content" > "$LAST_NOTIF"
 }
 
-check_trigger() {
-    if [ -f "$TRIGGER" ]; then
-        local content=$(cat "$TRIGGER" 2>/dev/null)
-        rm -f "$TRIGGER"
-        if [ -n "$content" ]; then
-            local title=$(echo "$content" | cut -d'|' -f1)
-            local text=$(echo "$content" | cut -d'|' -f2-)
-            send_notification "$title" "$text"
-        fi
-    fi
-}
 
 # Normalize version: strip v prefix, parenthetical, -release, commit hashes
 normalize_version() {
@@ -360,10 +396,8 @@ ${mod_name}: ${latest}"
     fi
 }
 
-# Initial auto-check (respects boot mode and cooldown)
-if should_check; then
-    check_updates
-fi
+# Smart update scheduler — checks now if due, then sleeps exact remaining time
+schedule_checks
 
 # Exec daemon — handles root commands from companion app
 # App writes command to CMD_DIR/<id>, daemon executes and writes result to RES_DIR/<id>
@@ -392,6 +426,8 @@ if [ -d "$APP_DIR" ]; then
     log "IPC dirs ready, SELinux ctx: $APP_CTX"
 
     # Exec daemon — reads commands from app, executes as root, writes results
+    # Runs in foreground to keep service.sh alive (needed for KSU module lifecycle)
+    log "exec daemon running"
     while true; do
         for cmd_file in "$CMD_DIR"/*; do
             [ -f "$cmd_file" ] || continue
@@ -407,26 +443,11 @@ if [ -d "$APP_DIR" ]; then
                 chcon "$APP_CTX" "$RES_DIR/$id" 2>/dev/null
             fi
         done
-        sleep 0.02
-    done &
-    log "exec daemon PID: $!"
+        sleep 0.05
+    done
 else
-    log "companion app data dir not found"
+    log "companion app data dir not found — no exec daemon needed"
+    # No companion app and no polling loop — service.sh exits cleanly
+    # Update checks happen at boot (above) and on-demand from WebUI
+    log "service.sh done"
 fi
-
-# Main loop: poll trigger file every 60s, auto-check every 24h
-last_check=$(date +%s)
-log "entering main loop"
-while true; do
-    sleep $POLL_INTERVAL
-    check_trigger
-
-    now=$(date +%s)
-    elapsed=$((now - last_check))
-    if [ "$elapsed" -ge "$CHECK_INTERVAL" ]; then
-        if should_check; then
-            check_updates
-        fi
-        last_check=$now
-    fi
-done
