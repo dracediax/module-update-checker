@@ -556,11 +556,40 @@ var CI_REPOS = {
   're-zero001/LSPosed-Irena': true
 };
 
+// Normalize Unicode mathematical/styled letters to ASCII.
+// Some modules (e.g. Integrity Box) use Unicode math bold-italic chars in their name,
+// which breaks ASCII regex matching.  Handles all Mathematical Alphanumeric Symbols blocks.
+var _MATH_UPPER = [0x1D400,0x1D434,0x1D468,0x1D49C,0x1D4D0,0x1D504,0x1D538,0x1D56C,0x1D5A0,0x1D5D4,0x1D608,0x1D63C,0x1D670];
+var _MATH_LOWER = [0x1D41A,0x1D44E,0x1D482,0x1D4B6,0x1D4EA,0x1D51E,0x1D552,0x1D586,0x1D5BA,0x1D5EE,0x1D622,0x1D656,0x1D68A];
+function normalizeFancyText(s) {
+  if (!s || !/[\uD800-\uDBFF]/.test(s)) return s;
+  var out = '';
+  for (var i = 0; i < s.length; i++) {
+    var hi = s.charCodeAt(i);
+    if (hi >= 0xD800 && hi <= 0xDBFF && i + 1 < s.length) {
+      var lo = s.charCodeAt(i + 1);
+      if (lo >= 0xDC00 && lo <= 0xDFFF) {
+        var cp = 0x10000 + (hi - 0xD800) * 0x400 + (lo - 0xDC00);
+        var mapped = null;
+        for (var j = 0; j < _MATH_UPPER.length && !mapped; j++)
+          if (cp >= _MATH_UPPER[j] && cp < _MATH_UPPER[j] + 26) mapped = String.fromCharCode(65 + cp - _MATH_UPPER[j]);
+        for (var j = 0; j < _MATH_LOWER.length && !mapped; j++)
+          if (cp >= _MATH_LOWER[j] && cp < _MATH_LOWER[j] + 26) mapped = String.fromCharCode(97 + cp - _MATH_LOWER[j]);
+        out += mapped || ' '; i++; continue;
+      }
+    }
+    out += s[i];
+  }
+  return out;
+}
+
 function resolveRepo(id, name, dir) {
   // 1. Regex name matching (most specific, handles forks with same ID)
-  if (name) {
+  // Normalize fancy Unicode letters (e.g. Integrity Box uses math bold-italic chars)
+  var normName = normalizeFancyText(name);
+  if (normName) {
     for (var i = 0; i < NAME_REPOS.length; i++) {
-      if (NAME_REPOS[i].match.test(name)) return NAME_REPOS[i].repo;
+      if (NAME_REPOS[i].match.test(normName)) return NAME_REPOS[i].repo;
     }
   }
   // 2. ID-based lookup
@@ -799,11 +828,14 @@ function renderModuleCard(mod, list) {
     var _pfxM = ciArtifactName.match(/^([A-Za-z][A-Za-z0-9_\-]*?)[\-_](v?\d)/);
     if (_pfxM) {
       var _pfxStr = _pfxM[1].replace(/[\-_]/g, ' ');
+      var _normModName = normalizeFancyText(mod.name);
       var _artRepo = '', _modRepo = '';
       for (var _ri = 0; _ri < NAME_REPOS.length; _ri++) {
         if (!_artRepo && NAME_REPOS[_ri].match.test(_pfxStr)) _artRepo = NAME_REPOS[_ri].repo;
-        if (!_modRepo && NAME_REPOS[_ri].match.test(mod.name)) _modRepo = NAME_REPOS[_ri].repo;
+        if (!_modRepo && NAME_REPOS[_ri].match.test(_normModName)) _modRepo = NAME_REPOS[_ri].repo;
       }
+      // Fallback: if name matching couldn't identify the module family, use ID-based resolution
+      if (!_modRepo) _modRepo = resolveRepo(mod.id, '', mod.dir);
       if (_artRepo && _modRepo && _artRepo !== _modRepo) ciArtifactName = '';
     }
   }
