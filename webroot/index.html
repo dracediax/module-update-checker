@@ -324,25 +324,44 @@
 <div class="settings-panel" id="settings-panel">
 
   <div class="setting-group">
-    <h3>Update Check</h3>
-    <div class="setting-row">
-      <label for="boot-mode">Mode:</label>
-      <select id="boot-mode" onchange="onBootModeChange(); autoSaveSettings()">
-        <option value="scheduled">Daily at set time (recommended)</option>
-        <option value="every_boot">Every boot</option>
-        <option value="manual">Manual only</option>
+    <h3>Notifications</h3>
+
+    <div class="setting-row" style="margin-bottom:6px">
+      <span style="font-size:13px;font-weight:500;color:var(--fg2)">Daily update check</span>
+      <label class="toggle" style="margin-left:auto">
+        <input type="checkbox" id="daily-check-toggle" checked onchange="onDailyCheckChange();autoSaveSettings()">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="daily-check-body">
+      <div class="setting-row" id="check-time-row" style="margin-left:4px">
+        <label for="check-time" style="font-size:13px">Check at:</label>
+        <input type="time" id="check-time" value="08:00" onchange="autoSaveSettings()" style="background:var(--bg3);color:var(--fg);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-size:13px">
+        <span id="next-check-info" style="font-size:11px;color:var(--fg4);margin-left:4px"></span>
+      </div>
+      <div class="setting-row" id="interval-row" style="margin-top:6px;margin-left:4px">
+        <input type="checkbox" id="interval-toggle" onchange="onIntervalToggle();autoSaveSettings()">
+        <label for="interval-toggle" style="font-size:13px">Or every</label>
+        <input type="number" id="check-interval" min="1" max="168" value="6" disabled
+          style="width:52px;background:var(--bg3);color:var(--fg);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:13px"
+          onchange="autoSaveSettings()">
+        <span style="font-size:13px;color:var(--fg3)">hours</span>
+      </div>
+    </div>
+
+    <div class="setting-row" style="margin-top:12px">
+      <label for="boot-check" style="font-size:13px;font-weight:500;color:var(--fg2)">On reboot:</label>
+      <select id="boot-check" onchange="autoSaveSettings()">
+        <option value="every_boot">Check every reboot</option>
+        <option value="cooldown" selected>Check if last check was over 1h ago</option>
+        <option value="off">Do not check after reboot</option>
       </select>
     </div>
-    <div class="setting-row" id="check-time-row" style="margin-top:8px">
-      <label for="check-time">Check at:</label>
-      <input type="time" id="check-time" value="08:00" onchange="autoSaveSettings()" style="background:var(--bg3);color:var(--fg);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-size:13px">
-      <span id="next-check-info" style="font-size:11px;color:var(--fg4);margin-left:8px"></span>
-    </div>
-    <div class="setting-info">
-      <b>Daily at set time</b> — checks once per day at your chosen time. Zero battery drain (single sleep timer).<br>
-      If the phone was off during the scheduled time, it checks on next boot.<br>
-      <b>Every boot</b> — checks immediately on every reboot.<br>
-      <b>Manual only</b> — no auto-checks. Use the button above.
+
+    <div class="setting-info" style="margin-top:8px">
+      Daily check and reboot check are independent — both, either, or neither.<br>
+      The check button below always works.
     </div>
   </div>
 
@@ -575,7 +594,9 @@ var config = [];
 var debugLog = [];
 var ksuPackage = '';
 var ghToken = '';
-var bootMode = 'scheduled';
+var bootMode = 'cooldown';
+var dailyEnabled = true;
+var checkInterval = 0;
 var companionWasOn = true; // tracks boot state of companion app
 var apiCalls = 0;
 var apiHourStart = 0;
@@ -772,6 +793,20 @@ function renderModuleCard(mod, list) {
     exec("grep -v '^" + mod.id + "|' /data/adb/muc/ci_installed > /data/adb/muc/ci_installed.tmp 2>/dev/null; mv /data/adb/muc/ci_installed.tmp /data/adb/muc/ci_installed 2>/dev/null");
     ciArtifactName = '';
   }
+  // If artifact name resolves to a different module family than the installed module, don't use it
+  // (e.g. PlayIntegrityFix artifact shown when Integrity Box is installed)
+  if (isCiBuild && ciArtifactName) {
+    var _pfxM = ciArtifactName.match(/^([A-Za-z][A-Za-z0-9_\-]*?)[\-_](v?\d)/);
+    if (_pfxM) {
+      var _pfxStr = _pfxM[1].replace(/[\-_]/g, ' ');
+      var _artRepo = '', _modRepo = '';
+      for (var _ri = 0; _ri < NAME_REPOS.length; _ri++) {
+        if (!_artRepo && NAME_REPOS[_ri].match.test(_pfxStr)) _artRepo = NAME_REPOS[_ri].repo;
+        if (!_modRepo && NAME_REPOS[_ri].match.test(mod.name)) _modRepo = NAME_REPOS[_ri].repo;
+      }
+      if (_artRepo && _modRepo && _artRepo !== _modRepo) ciArtifactName = '';
+    }
+  }
   var isSusfs = mod.id === 'susfs4ksu';
   var cachedRelTag = exec("grep '^" + mod.id + "|' /data/adb/muc/version_override 2>/dev/null | head -1 | cut -d'|' -f2 | tr -d '\\n'");
   // Determine displayed version
@@ -895,17 +930,30 @@ function autoSaveConfig() {
   showUpdateAllButton();
 }
 
-function onBootModeChange() {
-  var mode = document.getElementById('boot-mode').value;
-  document.getElementById('check-time-row').style.display = (mode === 'scheduled') ? 'flex' : 'none';
+function onDailyCheckChange() {
+  var on = document.getElementById('daily-check-toggle').checked;
+  document.getElementById('daily-check-body').style.display = on ? 'block' : 'none';
+  updateNextCheckInfo();
+}
+
+function onIntervalToggle() {
+  var useInterval = document.getElementById('interval-toggle').checked;
+  document.getElementById('check-time-row').style.display = useInterval ? 'none' : 'flex';
+  document.getElementById('check-interval').disabled = !useInterval;
   updateNextCheckInfo();
 }
 
 function updateNextCheckInfo() {
   var el = document.getElementById('next-check-info');
   if (!el) return;
-  var mode = document.getElementById('boot-mode').value;
-  if (mode !== 'scheduled') { el.textContent = ''; return; }
+  var dailyOn = document.getElementById('daily-check-toggle').checked;
+  if (!dailyOn) { el.textContent = ''; return; }
+  var useInterval = document.getElementById('interval-toggle').checked;
+  if (useInterval) {
+    var hours = parseInt(document.getElementById('check-interval').value) || 6;
+    el.textContent = 'every ' + hours + 'h';
+    return;
+  }
   var checkTime = document.getElementById('check-time').value || '08:00';
   var parts = checkTime.split(':');
   var targetH = parseInt(parts[0]) || 0;
@@ -918,7 +966,6 @@ function updateNextCheckInfo() {
   var h = Math.floor(wait / 3600);
   var m = Math.floor((wait % 3600) / 60);
   el.textContent = 'next in ' + h + 'h ' + m + 'm';
-  // Read last scheduled check
   var lastSched = exec("cat /data/adb/muc/last_scheduled_check 2>/dev/null | tr -d '\\n'");
   if (lastSched) {
     var elapsed = Math.floor(Date.now() / 1000) - parseInt(lastSched);
@@ -931,14 +978,18 @@ function updateNextCheckInfo() {
 }
 
 function autoSaveSettings() {
-  var bootMode = document.getElementById('boot-mode').value;
+  var bootCheckMode = document.getElementById('boot-check').value;
+  var dailyOn = document.getElementById('daily-check-toggle').checked;
   var checkTime = document.getElementById('check-time').value || '08:00';
+  var useInterval = document.getElementById('interval-toggle').checked;
+  var intervalVal = parseInt(document.getElementById('check-interval').value) || 0;
   var debugOn = document.getElementById('debug-toggle').checked;
   var companionOn = document.getElementById('companion-toggle').checked;
   var themeLight = document.getElementById('theme-toggle').checked;
   document.getElementById('debug-btn').style.display = debugOn ? 'block' : 'none';
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
-  exec("printf 'boot_check=" + bootMode + "\ncheck_time=" + checkTime + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
+  var intervalLine = (useInterval && intervalVal > 0) ? "\ncheck_interval=" + intervalVal : "";
+  exec("printf 'boot_check=" + bootCheckMode + "\ndaily_enabled=" + (dailyOn ? 'on' : 'off') + "\ncheck_time=" + checkTime + intervalLine + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
   updateNextCheckInfo();
 
   var companionChanged = (companionOn !== companionWasOn);
@@ -2096,12 +2147,37 @@ function loadSettings() {
   // Load settings
   var settings = exec("cat " + SETTINGS_PATH + " 2>/dev/null").trim();
   if (settings) {
+    // Boot check mode (with migration from old values)
     var modeMatch = settings.match(/boot_check=([^\n]+)/);
-    if (modeMatch) bootMode = modeMatch[1].trim();
-    // Migrate old values to new scheduled mode
-    if (bootMode === 'always' || bootMode === 'every_boot_cooldown' || bootMode === 'once_a_day' || bootMode === 'daily') bootMode = 'scheduled';
+    var rawMode = modeMatch ? modeMatch[1].trim() : '';
+    if (rawMode === 'every_boot' || rawMode === 'always') bootMode = 'every_boot';
+    else if (rawMode === 'off' || rawMode === 'manual') bootMode = 'off';
+    else if (rawMode) bootMode = 'cooldown'; // scheduled/daily/every_boot_cooldown/etc → cooldown
+
+    // Daily check enabled (with migration)
+    var dailyMatch = settings.match(/daily_enabled=(\w+)/);
+    if (dailyMatch) {
+      dailyEnabled = dailyMatch[1] === 'on';
+    } else {
+      // Migrate: old boot_check=manual meant no auto-checks
+      if (rawMode === 'manual') dailyEnabled = false;
+    }
+
+    // Check time
     var timeMatch = settings.match(/check_time=([^\n]+)/);
     if (timeMatch) document.getElementById('check-time').value = timeMatch[1].trim();
+
+    // Interval mode
+    var intervalMatch = settings.match(/check_interval=(\d+)/);
+    if (intervalMatch) {
+      checkInterval = parseInt(intervalMatch[1]) || 0;
+      if (checkInterval > 0) {
+        document.getElementById('interval-toggle').checked = true;
+        document.getElementById('check-interval').value = checkInterval;
+        onIntervalToggle();
+      }
+    }
+
     var debugMatch = settings.match(/debug_menu=(\w+)/);
     if (debugMatch && debugMatch[1] === 'on') {
       document.getElementById('debug-toggle').checked = true;
@@ -2122,8 +2198,11 @@ function loadSettings() {
       document.body.classList.add('light');
     }
   }
-  document.getElementById('boot-mode').value = bootMode;
-  onBootModeChange();
+
+  // Apply loaded values to UI
+  document.getElementById('boot-check').value = bootMode;
+  document.getElementById('daily-check-toggle').checked = dailyEnabled;
+  onDailyCheckChange();
 
   // Load API stats
   loadApiStats();

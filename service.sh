@@ -104,23 +104,48 @@ track_api_call() {
 get_boot_mode() {
     if [ -f "$SETTINGS_FILE" ]; then
         local mode=$(grep '^boot_check=' "$SETTINGS_FILE" | cut -d= -f2)
-        [ -n "$mode" ] && echo "$mode" && return
+        case "$mode" in
+            every_boot) echo "every_boot"; return ;;
+            cooldown)   echo "cooldown";   return ;;
+            off)        echo "off";        return ;;
+            always)     echo "every_boot"; return ;;
+            manual)     echo "off";        return ;;
+            scheduled|every_boot_cooldown|once_a_day|daily) echo "cooldown"; return ;;
+        esac
     fi
-    echo "always"
+    echo "cooldown"
 }
 
-# Smart update scheduler — sleeps until exact target time, zero polling
-# Reads check_time from settings (HH:MM, default 08:00)
-# Tracks last SCHEDULED check separately (manual/boot checks don't count)
+get_daily_enabled() {
+    if [ -f "$SETTINGS_FILE" ]; then
+        local val=$(grep '^daily_enabled=' "$SETTINGS_FILE" | cut -d= -f2)
+        [ "$val" = "off" ] && echo "off" && return
+        [ "$val" = "on"  ] && echo "on"  && return
+        # Migrate: old boot_check=manual meant no auto-checks at all
+        local old=$(grep '^boot_check=' "$SETTINGS_FILE" | cut -d= -f2)
+        [ "$old" = "manual" ] && echo "off" && return
+    fi
+    echo "on"
+}
+
+get_check_interval() {
+    if [ -f "$SETTINGS_FILE" ]; then
+        local val=$(grep '^check_interval=' "$SETTINGS_FILE" | cut -d= -f2)
+        if echo "$val" | grep -qE '^[0-9]+$'; then
+            echo "$val"; return
+        fi
+    fi
+    echo "0"
+}
+
+# Scheduler state file — tracks last SCHEDULED check (not manual or boot)
 SCHEDULED_CHECK_FILE="$MUC_DIR/last_scheduled_check"
 
 get_check_time() {
     if [ -f "$SETTINGS_FILE" ]; then
         local t=$(grep '^check_time=' "$SETTINGS_FILE" | cut -d= -f2)
-        # Validate HH:MM format
         if echo "$t" | grep -qE '^[0-2][0-9]:[0-5][0-9]$'; then
-            echo "$t"
-            return
+            echo "$t"; return
         fi
     fi
     echo "08:00"
@@ -141,61 +166,83 @@ secs_until() {
 }
 
 schedule_checks() {
-    local mode=$(get_boot_mode)
-    # Migrate old values
-    [ "$mode" = "always" ] && mode="every_boot"
-    [ "$mode" = "daily" ] && mode="scheduled"
-    [ "$mode" = "every_boot_cooldown" ] && mode="scheduled"
-    [ "$mode" = "once_a_day" ] && mode="scheduled"
-    log "check mode: $mode"
+    local boot_mode=$(get_boot_mode)   # every_boot | cooldown | off
+    local daily=$(get_daily_enabled)   # on | off
+    log "boot_mode=$boot_mode daily=$daily"
 
-    if [ "$mode" = "manual" ]; then
-        log "manual mode — no auto-checks"
-        return
-    fi
-
-    if [ "$mode" = "every_boot" ]; then
-        log "every_boot — checking now"
+    # --- Boot check (independent of daily) ---
+    if [ "$boot_mode" = "every_boot" ]; then
+        log "boot check: every reboot"
         check_updates
-        return
-    fi
-
-    # scheduled mode: check at user-specified time daily
-    local check_time=$(get_check_time)
-    local now=$(date +%s)
-    log "scheduled mode — target time: $check_time"
-
-    # Failsafe: did we miss the last scheduled window?
-    # If last scheduled check was >24h ago, check now (phone was off during window)
-    local last_sched=0
-    if [ -f "$SCHEDULED_CHECK_FILE" ]; then
-        last_sched=$(cat "$SCHEDULED_CHECK_FILE" 2>/dev/null)
-        [ -z "$last_sched" ] && last_sched=0
-    fi
-    local sched_elapsed=$((now - last_sched))
-
-    if [ "$last_sched" -eq 0 ] || [ "$sched_elapsed" -ge 93600 ]; then
-        # Never checked or missed window (>26h grace = 24h + 2h buffer)
-        log "missed scheduled window (last: ${sched_elapsed}s ago) — checking now"
-        check_updates
-        date +%s > "$SCHEDULED_CHECK_FILE"
+    elif [ "$boot_mode" = "cooldown" ]; then
+        local now=$(date +%s)
+        local last=0
+        [ -f "$LAST_CHECK_FILE" ] && last=$(cat "$LAST_CHECK_FILE" 2>/dev/null)
+        [ -z "$last" ] && last=0
+        local elapsed=$((now - last))
+        if [ "$last" -eq 0 ] || [ "$elapsed" -ge 3600 ]; then
+            log "boot check: cooldown — ${elapsed}s since last, checking"
+            check_updates
+        else
+            log "boot check: cooldown — ${elapsed}s since last, skipping"
+        fi
     else
-        log "last scheduled check was ${sched_elapsed}s ago"
+        log "boot check: off"
     fi
 
-    # Calculate exact sleep until next check_time
-    local wait=$(secs_until "$check_time")
-    log "sleeping ${wait}s until $check_time"
+    # --- Daily / interval scheduled check ---
+    if [ "$daily" != "on" ]; then
+        log "daily check: disabled"
+        return
+    fi
 
-    # Sleep until target time, check, repeat daily
-    while true; do
-        sleep "$wait"
-        log "scheduled check at $check_time"
-        check_updates
-        date +%s > "$SCHEDULED_CHECK_FILE"
-        wait=86400
-    done &
-    log "scheduler PID: $! (next check in ${wait}s at $check_time)"
+    local interval=$(get_check_interval)   # hours; 0 = use check_time
+
+    if [ "$interval" -gt 0 ] 2>/dev/null; then
+        # Interval mode: check every N hours
+        local interval_secs=$((interval * 3600))
+        log "daily check: every ${interval}h"
+        while true; do
+            sleep "$interval_secs"
+            log "interval check (${interval}h)"
+            rm -f "$LAST_NOTIF"
+            check_updates
+        done &
+        log "interval scheduler PID: $!"
+    else
+        # Time-based mode: check daily at HH:MM
+        local check_time=$(get_check_time)
+        log "daily check: at $check_time"
+
+        # Failsafe: if >26h since last scheduled check, check now
+        local now=$(date +%s)
+        local last_sched=0
+        [ -f "$SCHEDULED_CHECK_FILE" ] && last_sched=$(cat "$SCHEDULED_CHECK_FILE" 2>/dev/null)
+        [ -z "$last_sched" ] && last_sched=0
+        local sched_elapsed=$((now - last_sched))
+
+        if [ "$last_sched" -eq 0 ] || [ "$sched_elapsed" -ge 93600 ]; then
+            log "missed scheduled window (${sched_elapsed}s ago) — checking now"
+            rm -f "$LAST_NOTIF"
+            check_updates
+            date +%s > "$SCHEDULED_CHECK_FILE"
+        else
+            log "last scheduled check was ${sched_elapsed}s ago"
+        fi
+
+        local wait=$(secs_until "$check_time")
+        log "sleeping ${wait}s until $check_time"
+
+        while true; do
+            sleep "$wait"
+            log "scheduled check at $check_time"
+            rm -f "$LAST_NOTIF"   # clear dedup so daily reminder goes through
+            check_updates
+            date +%s > "$SCHEDULED_CHECK_FILE"
+            wait=86400
+        done &
+        log "scheduler PID: $! (next check in ${wait}s at $check_time)"
+    fi
 }
 
 curl_auth() {
