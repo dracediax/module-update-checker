@@ -11,6 +11,8 @@ SETTINGS_FILE="$MUC_DIR/settings"
 API_STATS_FILE="$MUC_DIR/api_stats"
 LAST_CHECK_FILE="$MUC_DIR/last_check"
 KSU_PKG_FILE="$MUC_DIR/ksu_package"
+VERSION_OVERRIDE_FILE="$MUC_DIR/version_override"
+CI_INSTALLED_FILE="$MUC_DIR/ci_installed"
 # Update checks run once at boot (respecting cooldown via LAST_CHECK_FILE)
 # No polling loop — WebUI "Check Now" runs checks inline via exec()
 
@@ -214,20 +216,19 @@ schedule_checks() {
         local check_time=$(get_check_time)
         log "daily check: at $check_time"
 
-        # Failsafe: if >26h since last scheduled check, check now
-        local now=$(date +%s)
-        local last_sched=0
-        [ -f "$SCHEDULED_CHECK_FILE" ] && last_sched=$(cat "$SCHEDULED_CHECK_FILE" 2>/dev/null)
-        [ -z "$last_sched" ] && last_sched=0
-        local sched_elapsed=$((now - last_sched))
-
-        if [ "$last_sched" -eq 0 ] || [ "$sched_elapsed" -ge 93600 ]; then
-            log "missed scheduled window (${sched_elapsed}s ago) — checking now"
+        # If scheduled time already passed today, run a catch-up check now
+        local t_h=$(echo "$check_time" | cut -d: -f1 | sed 's/^0//')
+        local t_m=$(echo "$check_time" | cut -d: -f2 | sed 's/^0//')
+        local c_h=$(date +%H | sed 's/^0//')
+        local c_m=$(date +%M | sed 's/^0//')
+        local c_s=$(date +%S | sed 's/^0//')
+        local t_secs=$(( (t_h * 3600) + (t_m * 60) ))
+        local c_secs=$(( (c_h * 3600) + (c_m * 60) + c_s ))
+        if [ "$t_secs" -le "$c_secs" ]; then
+            log "scheduled time passed today — running catch-up check now"
             rm -f "$LAST_NOTIF"
             check_updates
             date +%s > "$SCHEDULED_CHECK_FILE"
-        else
-            log "last scheduled check was ${sched_elapsed}s ago"
         fi
 
         local wait=$(secs_until "$check_time")
@@ -235,13 +236,15 @@ schedule_checks() {
 
         while true; do
             sleep "$wait"
+            check_time=$(get_check_time)
             log "scheduled check at $check_time"
-            rm -f "$LAST_NOTIF"   # clear dedup so daily reminder goes through
+            rm -f "$LAST_NOTIF"
             check_updates
             date +%s > "$SCHEDULED_CHECK_FILE"
-            wait=86400
+            wait=$(secs_until "$check_time")
+            log "next scheduled check in ${wait}s at $check_time"
         done &
-        log "scheduler PID: $! (next check in ${wait}s at $check_time)"
+        log "scheduler PID: $!"
     fi
 }
 
@@ -359,7 +362,7 @@ check_updates() {
     log "config loaded: $(echo "$modules" | wc -c) bytes"
 
     local id_list="$MODDIR/tmp_ids"
-    echo "$modules" | /system/bin/toybox sed -n 's/.*"id":"\([^"]*\)".*/\1/p' > "$id_list"
+    echo "$modules" | grep -o '"id":"[^"]*"' | cut -d'"' -f4 > "$id_list"
     local id_count=$(wc -l < "$id_list")
     log "found $id_count module IDs"
 
@@ -373,12 +376,20 @@ check_updates() {
         [ -z "$mod_id" ] && continue
         log "checking: $mod_id"
 
-        local repo=$(echo "$modules" | /system/bin/toybox sed -n "s/.*\"id\":\"${mod_id}\"[^}]*\"repo\":\"\([^\"]*\)\".*/\1/p")
+        local repo=$(echo "$modules" | grep -o "\"id\":\"${mod_id}\"[^}]*\"repo\":\"[^\"]*\"" | grep -o '"repo":"[^"]*"' | cut -d'"' -f4)
         if [ -z "$repo" ]; then
             log "  no repo for $mod_id"
             continue
         fi
         log "  repo: $repo"
+
+        # Extract per-module flags (split on { to isolate each JSON object)
+        local mod_obj=$(echo "$modules" | tr '{' '\n' | grep "\"id\":\"${mod_id}\"")
+        local has_pre_release=0
+        local has_ignore_ci=0
+        echo "$mod_obj" | grep -q '"preRelease":true' && has_pre_release=1
+        echo "$mod_obj" | grep -q '"ignoreCi":true' && has_ignore_ci=1
+        log "  flags: preRelease=$has_pre_release ignoreCi=$has_ignore_ci"
 
         local installed=""
         if [ -f "/data/adb/modules/${mod_id}/module.prop" ]; then
@@ -388,26 +399,69 @@ check_updates() {
             log "  no installed version"
             continue
         fi
-        log "  installed: $installed"
+        log "  installed (module.prop): $installed"
+
+        # For version-mismatch modules (e.g. SUSFS), use cached release tag
+        local override_ver=$(grep "^${mod_id}|" "$VERSION_OVERRIDE_FILE" 2>/dev/null | head -1 | cut -d'|' -f2)
+        if [ -n "$override_ver" ]; then
+            installed="$override_ver"
+            log "  installed (version_override): $installed"
+        fi
 
         local auth_header=$(curl_auth)
         local response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
         track_api_call
-        if [ -z "$response" ]; then
-            log "  curl failed for $repo"
-            continue
-        fi
-        log "  response: $(echo "$response" | wc -c) bytes"
 
         # Use grep -o instead of sed — handles long lines and optional spaces
-        local latest=$(echo "$response" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"//;s/"//')
+        local latest=""
+        local asset_url=""
+        if [ -n "$response" ]; then
+            latest=$(echo "$response" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"//;s/"//')
+            asset_url=$(echo "$response" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/"browser_download_url": *"//;s/"//')
+        fi
+        log "  stable: ${latest:-(none)}"
+
+        # Check pre-releases if enabled for this module
+        if [ "$has_pre_release" = "1" ]; then
+            local pre_response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases?per_page=1" 2>/dev/null)
+            track_api_call
+            if [ -n "$pre_response" ]; then
+                local pre_tag=$(echo "$pre_response" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"//;s/"//')
+                local pre_asset=$(echo "$pre_response" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/"browser_download_url": *"//;s/"//')
+                if [ -n "$pre_tag" ] && [ "$pre_tag" != "$latest" ]; then
+                    if is_newer "${latest:-0.0.0}" "$pre_tag"; then
+                        log "  pre-release $pre_tag is newer than stable ${latest:-(none)}"
+                        latest="$pre_tag"
+                        [ -n "$pre_asset" ] && asset_url="$pre_asset"
+                    fi
+                fi
+            fi
+        fi
+        log "  best release: ${latest:-(none)}"
+
+        # CI check: for CI-only repos (no releases) when CI is not muted
+        if [ -z "$latest" ] && [ "$has_ignore_ci" = "0" ]; then
+            local ci_response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/actions/runs?status=success&per_page=1" 2>/dev/null)
+            track_api_call
+            local ci_date=$(echo "$ci_response" | grep -o '"created_at": *"[^"]*"' | head -1 | sed 's/"created_at": *"//;s/".*//' | cut -c1-10)
+            if [ -n "$ci_date" ]; then
+                local ci_name="CI-${ci_date}"
+                local ci_installed_name=$(grep "^${mod_id}|" "$CI_INSTALLED_FILE" 2>/dev/null | head -1 | cut -d'|' -f2)
+                if [ "$ci_installed_name" != "$ci_name" ]; then
+                    latest="$ci_name"
+                    log "  CI-only update: $ci_name (installed: ${ci_installed_name:-none})"
+                else
+                    log "  CI already installed: $ci_name"
+                fi
+            fi
+        fi
+
         if [ -z "$latest" ]; then
-            log "  no tag_name in response"
+            log "  no release or CI build found"
             continue
         fi
-        log "  latest: $latest"
 
-        # Semantic version comparison
+        # Semantic version comparison (skip for CI-date strings)
         if is_newer "$installed" "$latest"; then
             update_count=$((update_count + 1))
             local mod_name=$(grep '^name=' "/data/adb/modules/${mod_id}/module.prop" 2>/dev/null | cut -d= -f2)
@@ -419,8 +473,6 @@ ${mod_name}: ${latest}"
                 update_names="${mod_name}: ${latest}"
             fi
 
-            # Extract asset URL for cache
-            local asset_url=$(echo "$response" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/"browser_download_url": *"//;s/"//')
             # Write to cache: id|installed|latest|asset_url
             echo "${mod_id}|${installed}|${latest}|${asset_url}" >> "$UPDATE_CACHE"
             log "  UPDATE: $installed -> $latest"
@@ -493,8 +545,12 @@ if [ -d "$APP_DIR" ]; then
         sleep 0.05
     done
 else
-    log "companion app data dir not found — no exec daemon needed"
-    # No companion app and no polling loop — service.sh exits cleanly
-    # Update checks happen at boot (above) and on-demand from WebUI
-    log "service.sh done"
+    log "companion app data dir not found — keepalive for scheduler"
+    # Keep service.sh alive so background scheduler processes are not killed.
+    # Scheduled checks depend on child processes spawned by schedule_checks();
+    # if service.sh exits, KSU may SIGKILL the process group.
+    while true; do
+        sleep 300
+        [ -d "$MODDIR" ] || { log "module removed — exiting keepalive"; break; }
+    done
 fi

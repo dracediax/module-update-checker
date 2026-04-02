@@ -171,15 +171,20 @@
   }
   .dbg-section {
     background: var(--bg4); border: 1px solid var(--border3); border-radius: 8px;
-    margin: 10px 0; padding: 12px; font-family: monospace;
-    font-size: 13px; line-height: 1.6; color: #c9d1d9;
-    word-break: break-all; white-space: pre-wrap;
+    margin: 10px 0; font-family: monospace; font-size: 13px;
+    line-height: 1.6; color: #c9d1d9; word-break: break-all; white-space: pre-wrap;
   }
-  .dbg-section h3 {
-    font-size: 13px; color: #58a6ff; margin: 0 0 8px 0;
-    padding-bottom: 6px; border-bottom: 1px solid var(--border3);
-    font-family: -apple-system, system-ui, sans-serif;
+  .dbg-section summary {
+    font-size: 13px; color: #58a6ff; margin: 0; padding: 10px 12px;
+    border-radius: 8px; font-family: -apple-system, system-ui, sans-serif;
+    cursor: pointer; list-style: none; display: flex;
+    justify-content: space-between; align-items: center; user-select: none;
   }
+  .dbg-section[open] > summary { border-bottom: 1px solid var(--border3); border-radius: 8px 8px 0 0; }
+  .dbg-section summary::after { content: '\25B6'; font-size: 10px; color: var(--fg4); }
+  .dbg-section[open] summary::after { content: '\25BC'; }
+  .dbg-section summary::-webkit-details-marker { display: none; }
+  .dbg-section-body { padding: 12px; }
   .dbg-ok { color: #3fb950; }
   .dbg-warn { color: var(--warn); }
   .dbg-err { color: #f85149; }
@@ -1917,7 +1922,7 @@ function isNewer(installed, latest) {
 }
 
 function dbgSection(title, content) {
-  return '<div class="dbg-section"><h3>' + escapeHtml(title) + '</h3>' + content + '</div>';
+  return '<details class="dbg-section"><summary>' + escapeHtml(title) + '</summary><div class="dbg-section-body">' + content + '</div></details>';
 }
 
 function dbgLine(key, val, cls) {
@@ -1953,24 +1958,6 @@ function showDebug() {
   for (var l = 0; l < debugLog.length; l++) { if (debugLog[l].error) errCount++; }
   if (errCount > 0) s2 += dbgLine('errors', errCount + '', 'dbg-warn');
   html += dbgSection('STATUS', s2);
-
-  // Notifications
-  var s3 = '';
-  var notifLogs = [];
-  for (var nl = 0; nl < debugLog.length; nl++) {
-    if (debugLog[nl].notif) notifLogs.push(debugLog[nl]);
-  }
-  if (notifLogs.length === 0) {
-    s3 = '<span class="dbg-dim">Press Check for Updates to see notification results</span>\n';
-  } else {
-    for (var ni = 0; ni < notifLogs.length; ni++) {
-      var n = notifLogs[ni];
-      var res = n.result || '(empty)';
-      var cls = res.indexOf('Error') !== -1 || res.indexOf('error') !== -1 ? 'dbg-err' : 'dbg-ok';
-      s3 += dbgLine(n.notif, res, cls);
-    }
-  }
-  html += dbgSection('NOTIFICATIONS', s3);
 
   // Download/Install log
   var sDl = '';
@@ -2012,6 +1999,38 @@ function showDebug() {
   if (!s4) s4 = '<span class="dbg-dim">No updates installed yet</span>\n';
   html += dbgSection('UPDATE HISTORY', s4);
 
+  // Service log
+  var sSvcLog = '';
+  var svcRaw = exec("tail -30 /data/adb/modules/module-update-checker/service.log 2>/dev/null | tr '\\n' '|'");
+  if (svcRaw) {
+    var svcLines = svcRaw.split('|');
+    for (var sli = 0; sli < svcLines.length; sli++) {
+      if (!svcLines[sli].trim()) continue;
+      var svcCls = svcLines[sli].indexOf('failed') !== -1 || svcLines[sli].indexOf('error') !== -1 ? 'dbg-err' :
+                   svcLines[sli].indexOf('update') !== -1 || svcLines[sli].indexOf('installed') !== -1 ? 'dbg-ok' : 'dbg-dim';
+      sSvcLog += dbgLine('', escapeHtml(svcLines[sli]), svcCls);
+    }
+  } else {
+    sSvcLog = '<span class="dbg-dim">No service log available</span>\n';
+  }
+  html += dbgSection('SERVICE LOG', sSvcLog);
+
+  // Cleanup log
+  var sClnLog = '';
+  var clnRaw = exec("cat /data/adb/muc_cleanup.log 2>/dev/null | tr '\\n' '|'");
+  if (clnRaw) {
+    var clnLines = clnRaw.split('|');
+    for (var cli = 0; cli < clnLines.length; cli++) {
+      if (!clnLines[cli].trim()) continue;
+      var clnCls = clnLines[cli].indexOf('Success') !== -1 || clnLines[cli].indexOf('cleanup done') !== -1 ? 'dbg-ok' :
+                   clnLines[cli].indexOf('Failure') !== -1 || clnLines[cli].indexOf('failed') !== -1 || clnLines[cli].indexOf('Error') !== -1 ? 'dbg-err' : 'dbg-dim';
+      sClnLog += dbgLine('', escapeHtml(clnLines[cli]), clnCls);
+    }
+  } else {
+    sClnLog = '<span class="dbg-dim">No cleanup log — only written when module is uninstalled</span>\n';
+  }
+  html += dbgSection('CLEANUP LOG', sClnLog);
+
   // Bug report button
   var reportHtml = '<div style="margin-top:16px;text-align:center">' +
     '<button class="btn" style="background:#333;font-size:13px;padding:10px" onclick="copyBugReport()">Copy Bug Report for GitHub</button>' +
@@ -2047,16 +2066,31 @@ function copyBugReport() {
   report += '**Service log (last 15 lines):**\n```\n';
   var slog = exec("tail -15 /data/adb/modules/module-update-checker/service.log 2>/dev/null | tr '\\n' '|'");
   if (slog) {
-    // Sanitize: redact token values, KSU package names, user paths
     var logText = slog.split('|').join('\n');
+    // Redact tokens and credentials
     logText = logText.replace(/ghp_[A-Za-z0-9_]+/g, 'ghp_[REDACTED]');
     logText = logText.replace(/token [A-Za-z0-9_]+/g, 'token [REDACTED]');
+    logText = logText.replace(/Authorization:[^\n]*/g, 'Authorization: [REDACTED]');
+    // Redact KSU package names (3-part dotted names)
     logText = logText.replace(/[a-z]{5,}\.[a-z]{5,}\.[a-z]{5,}/g, '[ksu_pkg]');
+    // Redact repo paths (may include private repos)
+    logText = logText.replace(/( repo: )[^\s\n]+/g, '$1[redacted]');
+    logText = logText.replace(/(curl failed for )[^\s\n]+/g, '$1[redacted]');
+    // Redact broadcast command details (may contain titles with module names)
+    logText = logText.replace(/am broadcast[^\n]*/g, 'am broadcast [redacted]');
     report += logText;
   } else {
     report += '(not available)\n';
   }
   report += '```\n\n';
+
+  var clnLog = exec("cat /data/adb/muc_cleanup.log 2>/dev/null | tr '\\n' '|'");
+  if (clnLog) {
+    var clnText = clnLog.split('|').join('\n');
+    clnText = clnText.replace(/ghp_[A-Za-z0-9_]+/g, 'ghp_[REDACTED]');
+    clnText = clnText.replace(/[a-z]{5,}\.[a-z]{5,}\.[a-z]{5,}/g, '[ksu_pkg]');
+    report += '**Cleanup log:**\n```\n' + clnText + '```\n\n';
+  }
 
   report += '**Describe the issue:**\n\n';
 
