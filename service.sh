@@ -13,6 +13,7 @@ LAST_CHECK_FILE="$MUC_DIR/last_check"
 KSU_PKG_FILE="$MUC_DIR/ksu_package"
 VERSION_OVERRIDE_FILE="$MUC_DIR/version_override"
 CI_INSTALLED_FILE="$MUC_DIR/ci_installed"
+SCHEDULER_SLEEP_PID_FILE="$MUC_DIR/scheduler_sleep_pid"
 # Update checks run once at boot (respecting cooldown via LAST_CHECK_FILE)
 # No polling loop — WebUI "Check Now" runs checks inline via exec()
 
@@ -172,10 +173,15 @@ schedule_checks() {
     local daily=$(get_daily_enabled)   # on | off
     log "boot_mode=$boot_mode daily=$daily"
 
+    # Track whether a check already ran on this boot — prevents double-check when
+    # both boot check and daily catch-up want to fire at the same time
+    local boot_check_ran=0
+
     # --- Boot check (independent of daily) ---
     if [ "$boot_mode" = "every_boot" ]; then
         log "boot check: every reboot"
         check_updates
+        boot_check_ran=1
     elif [ "$boot_mode" = "cooldown" ]; then
         local now=$(date +%s)
         local last=0
@@ -185,6 +191,7 @@ schedule_checks() {
         if [ "$last" -eq 0 ] || [ "$elapsed" -ge 3600 ]; then
             log "boot check: cooldown — ${elapsed}s since last, checking"
             check_updates
+            boot_check_ran=1
         else
             log "boot check: cooldown — ${elapsed}s since last, skipping"
         fi
@@ -209,6 +216,7 @@ schedule_checks() {
             log "interval check (${interval}h)"
             rm -f "$LAST_NOTIF"
             check_updates
+            date +%s > "$SCHEDULED_CHECK_FILE"
         done &
         log "interval scheduler PID: $!"
     else
@@ -216,7 +224,9 @@ schedule_checks() {
         local check_time=$(get_check_time)
         log "daily check: at $check_time"
 
-        # If scheduled time already passed today, run a catch-up check now
+        # If scheduled time already passed today and boot check didn't already cover it,
+        # run a catch-up check now. If boot check ran, skip the redundant scan — the
+        # results are the same and back-to-back checks waste API calls and blank the UI.
         local t_h=$(echo "$check_time" | cut -d: -f1 | sed 's/^0//')
         local t_m=$(echo "$check_time" | cut -d: -f2 | sed 's/^0//')
         local c_h=$(date +%H | sed 's/^0//')
@@ -225,24 +235,41 @@ schedule_checks() {
         local t_secs=$(( (t_h * 3600) + (t_m * 60) ))
         local c_secs=$(( (c_h * 3600) + (c_m * 60) + c_s ))
         if [ "$t_secs" -le "$c_secs" ]; then
-            log "scheduled time passed today — running catch-up check now"
-            rm -f "$LAST_NOTIF"
-            check_updates
+            if [ "$boot_check_ran" = "0" ]; then
+                log "scheduled time passed today — running catch-up check now"
+                rm -f "$LAST_NOTIF"
+                check_updates
+            else
+                log "scheduled time passed today — boot check already ran, skipping catch-up"
+            fi
             date +%s > "$SCHEDULED_CHECK_FILE"
         fi
 
-        local wait=$(secs_until "$check_time")
-        log "sleeping ${wait}s until $check_time"
-
+        # Sleep the exact wait time, but background the sleep process and save its PID.
+        # When check_time changes in settings, the WebUI kills that PID to interrupt the
+        # sleep immediately — scheduler re-loops, re-reads check_time, sleeps the new wait.
+        # No polling, no battery cost.
+        log "daily scheduler starting — next check at $check_time"
         while true; do
-            sleep "$wait"
+            check_time=$(get_check_time)
+            sched_wait=$(secs_until "$check_time")
+            log "sleeping ${sched_wait}s until $check_time"
+            sleep "$sched_wait" &
+            sched_sleep_pid=$!
+            echo "$sched_sleep_pid" > "$SCHEDULER_SLEEP_PID_FILE"
+            wait "$sched_sleep_pid"
+            sched_exit=$?
+            if [ "$sched_exit" -ne 0 ]; then
+                # Sleep was killed — settings changed, re-loop to recompute wait
+                log "scheduler sleep interrupted — rescheduling"
+                continue
+            fi
+            # Natural expiry — time to check
             check_time=$(get_check_time)
             log "scheduled check at $check_time"
             rm -f "$LAST_NOTIF"
             check_updates
             date +%s > "$SCHEDULED_CHECK_FILE"
-            wait=$(secs_until "$check_time")
-            log "next scheduled check in ${wait}s at $check_time"
         done &
         log "scheduler PID: $!"
     fi
@@ -281,6 +308,15 @@ send_notification() {
         local ksu_pkg=$(cat $KSU_PKG_FILE 2>/dev/null)
         local ksu_arg=""
         [ -n "$ksu_pkg" ] && ksu_arg="--es ksu_package $ksu_pkg"
+
+        # Ensure app process is alive — broadcast delivery fails silently if process is dead.
+        # DummyActivity is designed for this: transparent, finishes immediately.
+        if ! pidof com.dracediax.muc >/dev/null 2>&1; then
+            log "companion not running — waking process"
+            am start -n com.dracediax.muc/.DummyActivity >/dev/null 2>&1
+            sleep 2
+        fi
+
         local result=$(am broadcast -f 0x20 -n com.dracediax.muc/.NotificationReceiver -a com.dracediax.muc.NOTIFY --es title "$title" --es text "$text" --es hint "tap" $ksu_arg 2>&1)
         log "companion app: $result"
         sent=1
@@ -409,12 +445,14 @@ check_updates() {
         fi
 
         local auth_header=$(curl_auth)
-        local response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
+        local response=$(eval curl -sf --connect-timeout 10 $auth_header "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null)
         track_api_call
 
         # Use grep -o instead of sed — handles long lines and optional spaces
         local latest=""
         local asset_url=""
+        local ci_update=0
+        local ci_name=""
         if [ -n "$response" ]; then
             latest=$(echo "$response" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"//;s/"//')
             asset_url=$(echo "$response" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/"browser_download_url": *"//;s/"//')
@@ -423,7 +461,7 @@ check_updates() {
 
         # Check pre-releases if enabled for this module
         if [ "$has_pre_release" = "1" ]; then
-            local pre_response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/releases?per_page=1" 2>/dev/null)
+            local pre_response=$(eval curl -sf --connect-timeout 10 $auth_header "https://api.github.com/repos/${repo}/releases?per_page=1" 2>/dev/null)
             track_api_call
             if [ -n "$pre_response" ]; then
                 local pre_tag=$(echo "$pre_response" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"//;s/"//')
@@ -439,43 +477,62 @@ check_updates() {
         fi
         log "  best release: ${latest:-(none)}"
 
-        # CI check: for CI-only repos (no releases) when CI is not muted
-        if [ -z "$latest" ] && [ "$has_ignore_ci" = "0" ]; then
-            local ci_response=$(eval curl -sf --connect-timeout 5 $auth_header "https://api.github.com/repos/${repo}/actions/runs?status=success&per_page=1" 2>/dev/null)
+        # CI check: for CI-only repos (no release found) OR when token present and CI not muted
+        # Matches WebUI: with a token, CI is checked for all non-muted modules regardless of release
+        local has_token=0
+        [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ] && has_token=1
+        local should_check_ci=0
+        if [ "$has_ignore_ci" = "0" ]; then
+            [ -z "$latest" ] && should_check_ci=1
+            [ "$has_token" = "1" ] && should_check_ci=1
+        fi
+        if [ "$should_check_ci" = "1" ]; then
+            local ci_response=$(eval curl -sf --connect-timeout 10 $auth_header "https://api.github.com/repos/${repo}/actions/runs?status=success&per_page=1" 2>/dev/null)
             track_api_call
             local ci_date=$(echo "$ci_response" | grep -o '"created_at": *"[^"]*"' | head -1 | sed 's/"created_at": *"//;s/".*//' | cut -c1-10)
             if [ -n "$ci_date" ]; then
-                local ci_name="CI-${ci_date}"
+                ci_name="CI-${ci_date}"
                 local ci_installed_name=$(grep "^${mod_id}|" "$CI_INSTALLED_FILE" 2>/dev/null | head -1 | cut -d'|' -f2)
                 if [ "$ci_installed_name" != "$ci_name" ]; then
-                    latest="$ci_name"
-                    log "  CI-only update: $ci_name (installed: ${ci_installed_name:-none})"
+                    # CI-only repo: CI becomes the primary update target
+                    [ -z "$latest" ] && latest="$ci_name"
+                    ci_update=1
+                    log "  CI update: $ci_name (installed: ${ci_installed_name:-none})"
                 else
                     log "  CI already installed: $ci_name"
                 fi
             fi
         fi
 
-        if [ -z "$latest" ]; then
+        if [ -z "$latest" ] && [ "$ci_update" = "0" ]; then
             log "  no release or CI build found"
             continue
         fi
 
-        # Semantic version comparison (skip for CI-date strings)
-        if is_newer "$installed" "$latest"; then
+        # CI builds bypass semantic version comparison — already confirmed new via ci_installed check
+        # Release/pre-release tags use semantic comparison
+        if [ "$ci_update" = "1" ] || is_newer "$installed" "$latest"; then
             update_count=$((update_count + 1))
             local mod_name=$(grep '^name=' "/data/adb/modules/${mod_id}/module.prop" 2>/dev/null | cut -d= -f2)
             [ -z "$mod_name" ] && mod_name="$mod_id"
+
+            # If CI is the only reason for the update (no release newer than installed),
+            # report the CI build name instead of the stale release tag
+            local report_ver="$latest"
+            if [ "$ci_update" = "1" ] && ! is_newer "$installed" "$latest" 2>/dev/null; then
+                report_ver="$ci_name"
+            fi
+
             if [ -n "$update_names" ]; then
                 update_names="${update_names}
-${mod_name}: ${latest}"
+${mod_name}: ${report_ver}"
             else
-                update_names="${mod_name}: ${latest}"
+                update_names="${mod_name}: ${report_ver}"
             fi
 
             # Write to cache: id|installed|latest|asset_url
-            echo "${mod_id}|${installed}|${latest}|${asset_url}" >> "$UPDATE_CACHE"
-            log "  UPDATE: $installed -> $latest"
+            echo "${mod_id}|${installed}|${report_ver}|${asset_url}" >> "$UPDATE_CACHE"
+            log "  UPDATE: $installed -> $report_ver"
         else
             log "  up to date"
         fi

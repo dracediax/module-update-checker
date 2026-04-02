@@ -1027,6 +1027,10 @@ function autoSaveSettings() {
   if (!debugOn) document.getElementById('debug-out').style.display = 'none';
   var intervalLine = (useInterval && intervalVal > 0) ? "\ncheck_interval=" + intervalVal : "";
   exec("printf 'boot_check=" + bootCheckMode + "\ndaily_enabled=" + (dailyOn ? 'on' : 'off') + "\ncheck_time=" + checkTime + intervalLine + "\ndebug_menu=" + (debugOn ? 'on' : 'off') + "\ncompanion_app=" + (companionOn ? 'on' : 'off') + "\ntheme=" + (themeLight ? 'light' : 'dark') + "\n' > " + SETTINGS_PATH);
+  // Wake the scheduler so it re-reads the new check_time immediately instead of
+  // sleeping until the old time. Killing the sleep process causes wait() to return
+  // non-zero, the loop re-loops, calls secs_until() with the new check_time.
+  exec("kill \"$(cat /data/adb/muc/scheduler_sleep_pid 2>/dev/null)\" 2>/dev/null; true");
   updateNextCheckInfo();
 
   var companionChanged = (companionOn !== companionWasOn);
