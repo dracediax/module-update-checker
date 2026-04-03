@@ -16,7 +16,7 @@ Track, check, and update your modules from one place.
 - **Three-tier updates** — stable releases, pre-releases, and CI/nightly builds — shown simultaneously, each with its own color
 - **One-tap install** with automatic backup and rollback (restore via gear menu)
 - **Batch updates** — select and update multiple modules at once
-- **Smart repo matching** — 22+ known repos with fuzzy name detection. Forks and renamed modules auto-resolve (TrickyStore, PIF, Integrity Box, TEESimulator, etc.)
+- **Smart repo matching** — 21 known repos with fuzzy name detection. Forks and renamed modules auto-resolve (TrickyStore, PIF, Integrity Box, TEESimulator, etc.)
 - **Scheduled checks** — pick a daily check time (default 08:00) or check every N hours. One sleep timer, zero polling, zero battery drain. Overdue on next boot? Catches up immediately
 - **Notifications** — companion app or shell fallback
 - **GitHub token** — unlocks 5,000 API calls/hr, CI build detection, and artifact downloads (`public_repo` scope)
