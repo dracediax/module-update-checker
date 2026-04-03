@@ -17,7 +17,7 @@ Track, check, and update your modules from one place.
 - **One-tap install** with automatic backup and rollback (restore via gear menu)
 - **Batch updates** — select and update multiple modules at once
 - **Smart repo matching** — 22+ known repos with fuzzy name detection. Forks and renamed modules auto-resolve (TrickyStore, PIF, Integrity Box, TEESimulator, etc.)
-- **Scheduled checks** — pick a daily check time (default 08:00). One sleep timer, zero polling, zero battery drain. Missed window? Checks on next boot
+- **Scheduled checks** — pick a daily check time (default 08:00) or check every N hours. One sleep timer, zero polling, zero battery drain. Overdue on next boot? Catches up immediately
 - **Notifications** — companion app or shell fallback
 - **GitHub token** — unlocks 5,000 API calls/hr, CI build detection, and artifact downloads (`public_repo` scope)
 - **Dark & light theme**, search/filter, changelog viewer, debug panel, bug report generator
@@ -52,7 +52,7 @@ All persistent data at `/data/adb/muc/` — survives module updates.
 |------|---------|
 | `config.json` | Tracked modules and repo mappings |
 | `token` | GitHub PAT (chmod 600) |
-| `settings` | Check mode, check time, debug, companion, theme |
+| `settings` | Check mode, check time, interval (hours), debug, companion, theme |
 | `ci_installed` | Modules installed from CI builds (id, artifact, module name) |
 | `update_cache` | Background check results for instant display |
 | `version_override` | Cached release tags for version-mismatch modules (SUSFS) |
@@ -71,7 +71,7 @@ All persistent data at `/data/adb/muc/` — survives module updates.
 
 **WebUI** runs shell commands via `ksu.exec()` — module discovery, GitHub API queries, and module installation all happen through root shell calls from the browser context.
 
-**service.sh** starts after boot, waits for network, then runs the smart scheduler. In scheduled mode (default), it calculates the exact seconds until the user's chosen check time, sleeps once, checks, then sleeps 24h. If the phone was off during the scheduled window, it detects the missed check on next boot and runs immediately. No polling loops, no wakeups between checks.
+**service.sh** starts after boot, waits for network, then runs the smart scheduler. Two modes: **time-based** (calculates exact seconds until the chosen HH:MM, sleeps, checks, repeats every 24h) or **interval** (every N hours — calculates remaining time to next fire on boot, catches up immediately if overdue). Both modes run a single background sleep with no polling loops and no wakeups between checks.
 
 **Companion app** (~58KB) is a standalone WebView that loads the module's `index.html` via root IPC. No superuser permission needed — the service.sh daemon executes commands on its behalf. Can be disabled in Settings; notifications fall back to shell.
 
